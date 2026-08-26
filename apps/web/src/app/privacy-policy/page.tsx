@@ -1,0 +1,123 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Shield, ChevronRight, Phone, Mail, ArrowLeft } from "lucide-react";
+import { privacyPolicy } from "@/data/privacy";
+import { hospital } from "@/data/hospital";
+import { ScrollReveal, StaggerReveal, StaggerItem, staggerItemVariants } from "@/components/ui/motion";
+import { FloatingBlobs, PulseLineWatermark } from "@/components/ui/svg-patterns";
+import { CtaBand } from "@/components/home/CtaBand";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description:
+    "Learn how South City Hospital collects, protects, and retains patient data with enterprise encryption, Row-Level Security, and zero third-party data sharing.",
+  alternates: {
+    canonical: "https://southcityhospital.in/privacy-policy",
+  },
+};
+
+export default function PrivacyPolicyPage() {
+  return (
+    <>
+      {/* ── Hero Section ── */}
+      <section className="pt-12 pb-16 md:pt-16 md:pb-20 relative overflow-hidden bg-hero-gradient" aria-label="Privacy policy hero">
+        <FloatingBlobs />
+        <PulseLineWatermark />
+        <div className="container-site relative z-10">
+          <ScrollReveal className="max-w-2xl">
+            <div className="flex items-center gap-2 text-xs font-mono text-[var(--accent)] mb-3">
+              <Link href="/" className="hover:underline">Home</Link>
+              <ChevronRight size={12} />
+              <span>Privacy Policy</span>
+            </div>
+            <h1 className="font-display text-display-xl text-white mb-4">
+              Patient Data <br />
+              <em className="not-italic" style={{ color: "var(--accent)" }}>Privacy & Security.</em>
+            </h1>
+            <p className="text-white/75 text-lg leading-relaxed">
+              Our commitment to protecting your personal, contact, and medical consultation details with strict security controls and zero data sharing.
+            </p>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* ── Main Policy Content ── */}
+      <section className="py-[var(--section-y)] bg-[var(--cloud)]" aria-labelledby="policy-heading">
+        <div className="container-site max-w-4xl">
+          {/* Metadata Card */}
+          <ScrollReveal className="card p-6 md:p-8 bg-white border border-[var(--mist)] rounded-2xl shadow-card mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--mist)]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[var(--sky-100)] text-[var(--primary)] flex items-center justify-center shrink-0">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <h2 id="policy-heading" className="font-display font-bold text-lg text-[var(--navy-950)]">
+                    {privacyPolicy.title}
+                  </h2>
+                  <p className="text-xs text-[var(--slate)]">Last Updated: {privacyPolicy.lastUpdated}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="chip chip-diagnostic text-[11px] py-1 px-2.5 font-mono">
+                  Healthcare Data Standards
+                </span>
+              </div>
+            </div>
+
+            <p className="text-sm text-[var(--slate)] leading-relaxed mt-5">
+              {privacyPolicy.introduction}
+            </p>
+          </ScrollReveal>
+
+          {/* Policy Sections */}
+          <StaggerReveal className="space-y-6">
+            {privacyPolicy.sections.map((section) => (
+              <StaggerItem
+                key={section.id}
+                variants={staggerItemVariants}
+                className="card p-6 md:p-8 bg-white border border-[var(--mist)] rounded-2xl shadow-card space-y-4"
+              >
+                <h3 className="font-display font-semibold text-lg text-[var(--navy-950)] border-b border-[var(--mist)] pb-3">
+                  {section.title}
+                </h3>
+                <div className="space-y-3 text-sm text-[var(--slate)] leading-relaxed">
+                  {section.content.map((paragraph, idx) => (
+                    <p key={idx}>{paragraph}</p>
+                  ))}
+                </div>
+              </StaggerItem>
+            ))}
+          </StaggerReveal>
+
+          {/* Help & Contact Notice */}
+          <ScrollReveal className="mt-8 card p-6 bg-[var(--sky-100)]/60 border border-[var(--mist)] rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <p className="font-display font-semibold text-sm text-[var(--navy-950)]">Need assistance or have privacy questions?</p>
+              <p className="text-xs text-[var(--slate)] mt-0.5">Reach out directly to our administration desk in Meherpur, Silchar.</p>
+            </div>
+            <div className="flex flex-col xs:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
+              <a
+                href={`tel:${hospital.contact.phone.replace(/\s/g, "")}`}
+                className="btn btn-outline text-xs py-2 px-3 gap-1.5 w-full xs:w-auto justify-center min-h-[40px]"
+              >
+                <Phone size={14} />
+                <span>{hospital.contact.phone}</span>
+              </a>
+              <a
+                href={`mailto:${hospital.contact.email}`}
+                className="btn btn-primary text-xs py-2 px-3 gap-1.5 w-full xs:w-auto justify-center min-h-[40px]"
+              >
+                <Mail size={14} />
+                <span>Email Us</span>
+              </a>
+            </div>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      <CtaBand />
+    </>
+  );
+}

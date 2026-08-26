@@ -1,0 +1,27 @@
+[
+  {
+    "id": "doc-1787662437011",
+    "name": "Dr. Pinaki Roy",
+    "departmentSlug": "urology-laser-surgery",
+    "qualifications": [
+      "MBBS",
+      "DNB in General Surgery",
+      "MCh in Urology (from IPGMER, Kolkata)"
+    ],
+    "experienceYears": 10,
+    "photoUrl": "https://kgvpriwhqhbvofowbblv.supabase.co/storage/v1/object/public/doctor-avatars/avatars/doctor-1787662412717-qua3dig.webp",
+    "active": true,
+    "consultationSchedule": [
+      {
+        "day": "Monday–Wednesday",
+        "startTime": "09:00",
+        "endTime": "13:00"
+      }
+    ],
+    "languages": [
+      "English",
+      "Bengali",
+      "Hindi"
+    ]
+  }
+]

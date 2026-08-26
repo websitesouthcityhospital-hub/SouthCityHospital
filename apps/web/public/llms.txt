@@ -1,0 +1,69 @@
+# South City Hospital, Silchar — Public Information for LLM Agents
+
+> South City Hospital is a premier multi-specialty healthcare institution in Meherpur, Silchar, Assam, serving the Barak Valley region since 2006.
+
+## Hospital Overview
+- **Name:** South City Hospital
+- **Tagline:** We care with a difference
+- **Established:** 2006
+- **Managing Partner:** Nilava Mazumder
+- **Location:** Meherpur, Silchar, Assam – 788015, India
+- **Coordinates:** 24.7892° N, 92.7937° E
+- **Official Website:** https://southcityhospital.in
+
+## Emergency & Outpatient Services
+- **24/7 Emergency & Critical Care Helpline:** +91 6901271223 (Round-the-clock emergency room, ICU, CCU, and ambulance dispatch)
+- **General Hospital Phone:** +91 6901271223
+- **General Hospital Email:** support@southcityhospital.in
+- **Outpatient Department (OPD) Hours:** Monday – Saturday, 09:00 AM – 04:00 PM
+
+## Clinical Departments (13 Specialties)
+1. **Internal Medicine:** Comprehensive adult healthcare, acute illnesses, and lifestyle disease management.
+2. **Orthopaedics & Trauma:** Joint replacement, fracture trauma reduction, and musculoskeletal surgery.
+3. **Neuro Surgery:** Specialized surgical interventions for cranial, neurological, and spinal disorders.
+4. **Cardiology:** Advanced cardiac diagnostics, Echocardiography, Holter monitoring, and emergency CCU stabilization.
+5. **Gynaecology & Obstetrics:** Antenatal care, high-risk pregnancy management, and fertility healthcare.
+6. **Paediatrics & Neonatology:** Child healthcare, vaccination schedules, and newborn critical care.
+7. **Nephrology:** Kidney diseases, renal function management, and regular hemodialysis support.
+8. **Urology & Andrology:** Kidney stone removal, prostate treatment, and reconstructive urological surgery.
+9. **Gastroenterology:** Digestive disorders, liver health, upper GI endoscopy, and colonoscopy.
+10. **ENT (Otorhinolaryngology):** Ear, nose, throat diagnostics, microsurgery, and audiometry.
+11. **Dermatology:** Clinical skin care, allergy diagnosis, and therapeutic dermatological treatments.
+12. **General & Laparoscopic Surgery:** Minimally invasive keyhole surgery, hernia repair, and appendectomy.
+13. **Medical Oncology & Palliative Care:** Cancer diagnostic evaluation, chemotherapy support, and pain management.
+
+## Diagnostic & Critical Care Facilities (13 Units)
+- Multi-Slice Computed Tomography (CT-Scan)
+- Intensive Care Unit (ICU) & Coronary Care Unit (CCU)
+- Dialysis Center (Hemodialysis)
+- Color Doppler Echocardiography
+- Upper GI Endoscopy & Colonoscopy
+- Digital X-Ray (High-Frequency)
+- 24/7 Fully Automated Pathology Laboratory
+- Ultrasonography (USG) & 4D Obstetric Scans
+- Specialized Operation Theaters (Laminar Airflow)
+- Central Oxygen & Critical Medical Gas Pipeline
+- 24/7 Emergency Trauma Room & Triage
+- 24/7 In-House Hospital Pharmacy
+- 24/7 Advanced Life Support Ambulance Fleet
+
+## Patient Appointment Booking System
+- Patients can browse active hospital specialists and schedule outpatient consultation appointments directly online at `https://southcityhospital.in/doctors`.
+- **No Login Required:** Patients book with their Name, Phone Number, Date of Birth, and preferred time slot.
+- **No Advance Payment:** Doctor consultation fees are payable at the hospital registration reception upon arrival.
+- **Verification & PDF Slip:** Instant booking reference ID (format: `SCH-YYYY-XXXXX`) is generated with a downloadable PDF slip.
+- **Status Lookup:** Patients can check and track their appointments at `https://southcityhospital.in/booking-status` using their Booking Reference ID or Phone Number + Date of Birth.
+
+## Canonical Website URLs
+- Home: https://southcityhospital.in
+- Our Doctors: https://southcityhospital.in/doctors
+- Departments: https://southcityhospital.in/departments
+- Facilities: https://southcityhospital.in/facilities
+- Booking Status: https://southcityhospital.in/booking-status
+- About Us: https://southcityhospital.in/about
+- Contact Us: https://southcityhospital.in/contact
+- Frequently Asked Questions: https://southcityhospital.in/faq
+- Testimonials: https://southcityhospital.in/testimonials
+- Photo Gallery: https://southcityhospital.in/gallery
+- Privacy Policy: https://southcityhospital.in/privacy-policy
+- Terms of Service: https://southcityhospital.in/terms-of-service

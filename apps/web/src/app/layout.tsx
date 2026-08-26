@@ -1,0 +1,99 @@
+import type { Metadata, Viewport } from "next";
+import { Inter, Playfair_Display, IBM_Plex_Mono } from "next/font/google";
+import "./globals.css";
+import { Providers } from "@/components/providers/Providers";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  metadataBase: new URL("https://southcityhospital.in"),
+  title: {
+    default: "South City Hospital — Multi-Specialty Hospital in Silchar, Assam",
+    template: "%s | South City Hospital",
+  },
+  description:
+    "South City Hospital in Meherpur, Silchar, Assam — 13 clinical departments, 13 diagnostic facilities, and 24/7 emergency services. Trusted multi-specialty healthcare for the Barak Valley region.",
+  keywords: [
+    "South City Hospital",
+    "hospital Silchar",
+    "doctor booking Silchar",
+    "emergency hospital Silchar",
+    "multi-specialty hospital Assam",
+    "Barak Valley hospital",
+    "Meherpur hospital",
+    "best hospital in Silchar",
+  ],
+  authors: [{ name: "South City Hospital" }],
+  alternates: {
+    canonical: "./",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: "https://southcityhospital.in",
+    siteName: "South City Hospital",
+    title: "South City Hospital — Multi-Specialty Healthcare in Silchar",
+    description:
+      "13 clinical departments, 13 diagnostic facilities, and 24/7 emergency care in Meherpur, Silchar, Assam.",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "South City Hospital Silchar - Multi-Specialty Healthcare & 24/7 Emergency Care",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "South City Hospital — Multi-Specialty Healthcare in Silchar",
+    description:
+      "13 clinical departments, 13 diagnostic facilities, and 24/7 emergency services in Silchar, Assam.",
+    images: ["/og-image.jpg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1a4f8a",
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={`${inter.variable} ${playfair.variable} ${ibmPlexMono.variable}`}
+    >
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
