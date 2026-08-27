@@ -815,7 +815,7 @@ CREATE OR REPLACE FUNCTION get_doctor_availability_range(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $
+AS $$
 DECLARE
   v_day_name TEXT;
   v_exception RECORD;
@@ -915,7 +915,7 @@ BEGIN
     'reason', v_reason
   );
 END;
-$;
+$$;
 
 
 
