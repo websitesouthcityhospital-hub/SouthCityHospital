@@ -193,6 +193,13 @@ export function HeroSection() {
           <div className="relative hidden lg:block h-full w-full pointer-events-none" aria-hidden="true" />
         </div>
       </div>
+      {/* ── Smooth Bottom Fade ── */}
+      <div 
+        className="absolute inset-x-0 bottom-0 h-[120px] pointer-events-none z-10"
+        style={{
+          background: "linear-gradient(to bottom, rgba(10,37,64,0) 0%, rgba(10,37,64,0.4) 30%, rgba(26,58,92,0.8) 60%, rgba(107,133,163,0.95) 85%, var(--page-bg, #ffffff) 100%)"
+        }}
+      />
     </section>
   );
 }

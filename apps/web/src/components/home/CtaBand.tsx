@@ -14,6 +14,13 @@ export function CtaBand() {
       className="py-10 sm:py-16 relative overflow-hidden"
       style={{ background: "linear-gradient(135deg, var(--blue-800) 0%, var(--blue-600) 100%)" }}
     >
+      {/* ── Smooth Top Fade ── */}
+      <div 
+        className="absolute inset-x-0 top-0 h-[80px] pointer-events-none z-0"
+        style={{
+          background: "linear-gradient(to bottom, var(--page-bg, #ffffff) 0%, rgba(204,222,235,1) 20%, rgba(128,168,204,1) 50%, rgba(67,126,179,1) 80%, rgba(18,52,86,0) 100%)"
+        }}
+      />
       <DotGrid className="opacity-10" />
       <div className="absolute top-0 right-0 w-1/2 h-full bg-[var(--blue-500)] blur-[100px] opacity-30 pointer-events-none" />
       <div className="container-site relative z-10">

@@ -41,10 +41,21 @@ export function Navbar() {
 
   // Scroll shadow
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 8);
+    const handler = () => {
+      const heroSection = document.querySelector('.bg-hero-gradient, .bg-premium-atmosphere');
+      if (heroSection) {
+        const rect = heroSection.getBoundingClientRect();
+        // Turn white when the bottom of the hero section is about to scroll under the header (header is ~96px tall)
+        setScrolled(rect.bottom <= 120);
+      } else {
+        setScrolled(window.scrollY > 20);
+      }
+    };
+
+    handler(); // initial check
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
-  }, []);
+  }, [pathname]);
 
   // Focus trap on mobile menu open
   useEffect(() => {
@@ -116,8 +127,8 @@ export function Navbar() {
         className={cn(
           "transition-all duration-300 border-b",
           scrolled 
-            ? "bg-white/80 backdrop-blur-xl border-[var(--mist)] shadow-[var(--shadow-card)]" 
-            : "bg-transparent border-transparent"
+            ? "bg-white/95 backdrop-blur-xl border-[var(--mist)] shadow-[var(--shadow-card)]" 
+            : "bg-[var(--blue-950)] border-transparent"
         )}
       >
         <div className="container-site flex items-center justify-between h-16">
@@ -135,10 +146,10 @@ export function Navbar() {
               className="rounded-lg object-cover w-9 h-9 sm:w-11 sm:h-11 shrink-0 shadow-xs"
             />
             <div className="flex flex-col justify-center min-w-0">
-              <span className="font-display font-bold text-sm sm:text-lg leading-tight text-[var(--primary-dark)] truncate">
+              <span className={cn("font-display font-bold text-sm sm:text-lg leading-tight truncate transition-colors", scrolled ? "text-[var(--primary-dark)]" : "text-white")}>
                 South City Hospital
               </span>
-              <span className="text-[10px] text-[var(--slate)] font-medium leading-none hidden xs:block">
+              <span className={cn("text-[10px] font-medium leading-none hidden xs:block transition-colors", scrolled ? "text-[var(--slate)]" : "text-white/80")}>
                 Meherpur, Silchar
               </span>
             </div>
@@ -158,8 +169,8 @@ export function Navbar() {
                     className={cn(
                       "relative px-2 xl:px-2.5 py-1.5 h-9 flex items-center text-xs xl:text-sm font-semibold rounded-md transition-colors duration-200 whitespace-nowrap",
                       isActive
-                        ? "text-[var(--primary-dark)]"
-                        : "text-[var(--slate)] hover:text-[var(--primary)]"
+                        ? (scrolled ? "text-[var(--primary-dark)]" : "text-white")
+                        : (scrolled ? "text-[var(--slate)] hover:text-[var(--primary)]" : "text-white/80 hover:text-white")
                     )}
                     aria-current={isActive ? "page" : undefined}
                   >
@@ -167,7 +178,7 @@ export function Navbar() {
                     {isActive && (
                       <motion.div
                         layoutId="nav-underline"
-                        className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[var(--primary-mid)]"
+                        className={cn("absolute bottom-0 left-2 right-2 h-0.5 rounded-full", scrolled ? "bg-[var(--primary-dark)]" : "bg-[var(--accent)]")}
                         transition={{ type: "spring", stiffness: 380, damping: 30 }}
                       />
                     )}
@@ -190,7 +201,12 @@ export function Navbar() {
           {/* Mobile Hamburger (Strictly hidden on desktop, visible on mobile) */}
           <button
             ref={hamburgerRef}
-            className="flex lg:hidden items-center justify-center p-2 rounded-lg text-[var(--slate)] hover:text-[var(--ink)] hover:bg-[var(--cloud)] transition-all hover:scale-105 active:scale-95 shrink-0 -mr-1 cursor-pointer"
+            className={cn(
+              "flex lg:hidden items-center justify-center p-2 rounded-lg transition-all hover:scale-105 active:scale-95 shrink-0 -mr-1 cursor-pointer",
+              scrolled 
+                ? "text-[var(--slate)] hover:text-[var(--ink)] hover:bg-[var(--cloud)]" 
+                : "text-white/90 hover:text-white hover:bg-white/10"
+            )}
             onClick={() => setMobileOpen((v) => !v)}
             aria-expanded={mobileOpen}
             aria-controls="mobile-menu"

@@ -26,10 +26,9 @@ const QUICK_LINKS = [
 export function Footer() {
   return (
     <footer
-      className="text-white relative border-t border-[var(--blue-500)]/30"
+      className="text-white relative"
       style={{
-        background: "linear-gradient(to bottom, var(--blue-950), var(--blue-800))",
-        boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.05)"
+        background: "linear-gradient(to bottom, var(--blue-600) 0%, rgba(22,57,92,1) 40%, var(--blue-950) 100%)",
       }}
       aria-label="Site footer"
     >
