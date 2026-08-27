@@ -14,25 +14,53 @@ import {
   Ban,
   Calendar,
   Phone,
+  RefreshCw,
 } from "lucide-react";
 import { AdminLayout } from "@/components/AdminLayout";
-import { getBookingsForDate, updateBookingStatus } from "@/services/admin-bookings";
+import {
+  fetchOperationalDashboard,
+  updateBookingStatus,
+  type DashboardMetrics,
+} from "@/services/admin-bookings";
 import { useDoctors } from "@/services/doctors";
-import { getStoredExceptions } from "@/services/doctor-schedules";
+import { fetchDoctorExceptions } from "@/services/doctor-schedules";
 import { formatDisplayDate } from "@/lib/date-utils";
-import type { Appointment, AppointmentStatus, UserRole } from "@sch/types";
+import type { Appointment, AppointmentStatus, DoctorAvailabilityException, UserRole } from "@sch/types";
 
 export default function AdminDashboardPage() {
   const [currentRole, setCurrentRole] = useState<UserRole>("admin");
-  const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
-  const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    totalToday: 0,
+    remainingToday: 0,
+    unavailableDoctorsToday: 0,
+    patientsTriagedToday: 0,
+    todayAppointments: [],
+    recentRegistrations: [],
+    forecast7Days: [],
+  });
+  const [exceptions, setExceptions] = useState<DoctorAvailabilityException[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const { data: doctors } = useDoctors({ activeOnly: false });
-  const exceptions = getStoredExceptions();
-
   const todayStr = new Date().toISOString().split("T")[0];
+
+  const loadLiveDashboard = async () => {
+    try {
+      const [dashData, excData] = await Promise.all([
+        fetchOperationalDashboard(todayStr),
+        fetchDoctorExceptions(),
+      ]);
+      setMetrics(dashData);
+      setExceptions(excData);
+    } catch (err) {
+      console.error("Dashboard live fetch error:", err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -47,59 +75,28 @@ export default function AdminDashboardPage() {
       })
       .catch(() => {});
 
-    try {
-      const raw = localStorage.getItem("sch_appointments_store");
-      if (raw) {
-        const all: Appointment[] = JSON.parse(raw);
-        setAllAppointments(all);
-        setTodayAppointments(all.filter((a) => a.preferredDate === todayStr));
-      }
-    } catch {}
-
-    setIsLoading(false);
+    loadLiveDashboard();
   }, [todayStr]);
 
   const handleStatusChange = async (appointmentId: string, newStatus: AppointmentStatus) => {
     setUpdatingId(appointmentId);
     try {
       await updateBookingStatus(appointmentId, newStatus);
-      setTodayAppointments((prev) =>
-        prev.map((a) => (a.id === appointmentId ? { ...a, status: newStatus } : a))
-      );
-      setAllAppointments((prev) =>
-        prev.map((a) => (a.id === appointmentId ? { ...a, status: newStatus } : a))
-      );
+      setMetrics((prev) => ({
+        ...prev,
+        todayAppointments: prev.todayAppointments.map((a) =>
+          a.id === appointmentId ? { ...a, status: newStatus } : a
+        ),
+        remainingToday: prev.todayAppointments
+          .map((a) => (a.id === appointmentId ? { ...a, status: newStatus } : a))
+          .filter((a) => a.status !== "Completed" && a.status !== "Cancelled").length,
+      }));
     } catch (err) {
       console.error("Status update error", err);
     } finally {
       setUpdatingId(null);
     }
   };
-
-  const totalToday = todayAppointments.length;
-  const remainingToday = todayAppointments.filter(
-    (a) => a.status !== "Completed" && a.status !== "Cancelled"
-  ).length;
-
-  const unavailableDoctorsToday = exceptions.filter(
-    (e) => e.date === todayStr && e.type === "full_day_unavailable"
-  ).length;
-
-  const newPatientsToday = new Set(
-    todayAppointments.map((a) => a.patientPhone.replace(/\D/g, ""))
-  ).size;
-
-  const next7Days = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    const dStr = d.toISOString().split("T")[0];
-    const count = allAppointments.filter((a) => a.preferredDate === dStr).length;
-    return {
-      dateStr: dStr,
-      dayLabel: d.toLocaleDateString("en-US", { weekday: "short" }),
-      count,
-    };
-  });
 
   if (currentRole !== "admin") {
     return (
@@ -129,6 +126,17 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setIsRefreshing(true);
+                loadLiveDashboard();
+              }}
+              disabled={isRefreshing}
+              className="btn btn-outline text-xs py-1.5 px-3 flex items-center gap-1.5 border-[var(--mist)] bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              <RefreshCw size={13} className={isRefreshing ? "animate-spin text-[var(--primary)]" : ""} />
+              <span>{isRefreshing ? "Syncing..." : "Sync Live DB"}</span>
+            </button>
             <span className="chip chip-diagnostic text-xs py-1 px-3">
               {formatDisplayDate(todayStr)}
             </span>
@@ -143,7 +151,7 @@ export default function AdminDashboardPage() {
               <CalendarCheck size={18} className="text-[var(--primary)]" />
             </div>
             <p className="font-display font-bold text-2xl text-[var(--navy-950)]">
-              {totalToday}
+              {isLoading ? "..." : metrics.totalToday}
             </p>
             <p className="text-[11px] text-[var(--slate)]">All scheduled patient slots</p>
           </div>
@@ -154,7 +162,7 @@ export default function AdminDashboardPage() {
               <Clock size={18} className="text-amber-600" />
             </div>
             <p className="font-display font-bold text-2xl text-amber-700">
-              {remainingToday}
+              {isLoading ? "..." : metrics.remainingToday}
             </p>
             <p className="text-[11px] text-[var(--slate)]">Pending consultation</p>
           </div>
@@ -165,7 +173,7 @@ export default function AdminDashboardPage() {
               <Ban size={18} className="text-red-500" />
             </div>
             <p className="font-display font-bold text-2xl text-red-600">
-              {unavailableDoctorsToday}
+              {isLoading ? "..." : metrics.unavailableDoctorsToday}
             </p>
             <p className="text-[11px] text-[var(--slate)]">On leave or blocked</p>
           </div>
@@ -176,7 +184,7 @@ export default function AdminDashboardPage() {
               <Users size={18} className="text-purple-600" />
             </div>
             <p className="font-display font-bold text-2xl text-purple-700">
-              {newPatientsToday}
+              {isLoading ? "..." : metrics.patientsTriagedToday}
             </p>
             <p className="text-[11px] text-[var(--slate)]">Unique patient records</p>
           </div>
@@ -190,7 +198,7 @@ export default function AdminDashboardPage() {
                 <div className="flex items-center gap-2">
                   <CalendarCheck size={16} className="text-[var(--primary)]" />
                   <h2 className="font-display font-semibold text-sm text-[var(--navy-950)]">
-                    Today&apos;s Live Consultations ({todayAppointments.length})
+                    Today&apos;s Live Consultations ({metrics.todayAppointments.length})
                   </h2>
                 </div>
                 <Link
@@ -214,14 +222,14 @@ export default function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--mist)]">
-                    {todayAppointments.length === 0 ? (
+                    {metrics.todayAppointments.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-10 text-center text-[var(--slate)]">
-                          No appointments booked for today yet.
+                          {isLoading ? "Loading appointments..." : "No appointments booked for today yet."}
                         </td>
                       </tr>
                     ) : (
-                      todayAppointments.slice(0, 6).map((apt) => (
+                      metrics.todayAppointments.slice(0, 8).map((apt) => (
                         <tr key={apt.id} className="hover:bg-[var(--cloud)]/40 transition-colors">
                           <td className="py-3 px-4 font-semibold text-[var(--navy-950)] whitespace-nowrap">
                             {apt.preferredTimeSlot || "OPD Hours"}
@@ -291,7 +299,7 @@ export default function AdminDashboardPage() {
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {!doctors || doctors.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[var(--slate)] bg-[var(--cloud)] rounded-xl">
-                  No doctors registered yet.
+                  {isLoading ? "Loading doctor status..." : "No doctors registered yet."}
                 </div>
               ) : (
                 doctors.map((doc) => {
@@ -336,7 +344,7 @@ export default function AdminDashboardPage() {
             </h3>
 
             <div className="grid grid-cols-7 gap-1 text-center pt-2">
-              {next7Days.map((d, i) => (
+              {metrics.forecast7Days.map((d, i) => (
                 <div key={i} className="flex flex-col items-center gap-1.5">
                   <span className="text-[10px] text-[var(--slate)] font-semibold">{d.dayLabel}</span>
                   <div
@@ -369,27 +377,33 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
-              {allAppointments.slice(0, 4).map((apt) => (
-                <div
-                  key={apt.id}
-                  className="p-3 rounded-xl border border-[var(--mist)] bg-[var(--cloud)]/30 text-xs space-y-1.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-bold text-[var(--navy-950)]">{apt.patientName}</p>
-                    <span className="font-mono text-[10px] text-[var(--slate)]">{apt.bookingReference}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] text-[var(--slate)]">
-                    <span className="flex items-center gap-1">
-                      <Phone size={11} className="text-[var(--primary)]" />
-                      {apt.patientPhone}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar size={11} className="text-[var(--primary)]" />
-                      {formatDisplayDate(apt.preferredDate)}
-                    </span>
-                  </div>
+              {metrics.recentRegistrations.length === 0 ? (
+                <div className="col-span-2 py-6 text-center text-xs text-[var(--slate)]">
+                  {isLoading ? "Loading recent records..." : "No patient records registered yet."}
                 </div>
-              ))}
+              ) : (
+                metrics.recentRegistrations.slice(0, 4).map((apt) => (
+                  <div
+                    key={apt.id}
+                    className="p-3 rounded-xl border border-[var(--mist)] bg-[var(--cloud)]/30 text-xs space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-[var(--navy-950)]">{apt.patientName}</p>
+                      <span className="font-mono text-[10px] text-[var(--slate)]">{apt.bookingReference}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-[var(--slate)]">
+                      <span className="flex items-center gap-1">
+                        <Phone size={11} className="text-[var(--primary)]" />
+                        {apt.patientPhone}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar size={11} className="text-[var(--primary)]" />
+                        {formatDisplayDate(apt.preferredDate)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

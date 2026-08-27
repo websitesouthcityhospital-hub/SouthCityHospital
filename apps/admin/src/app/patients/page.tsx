@@ -8,17 +8,34 @@ import {
   Stethoscope,
   AlertCircle,
   Download,
+  Calendar,
+  Phone,
+  RefreshCw,
 } from "lucide-react";
 import { AdminLayout } from "@/components/AdminLayout";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { downloadBookingSlipPdf } from "@/lib/pdf-slip";
-import type { Appointment, UserRole } from "@sch/types";
+import { fetchPatientsCRM, type PatientProfile } from "@/services/patients";
+import type { UserRole } from "@sch/types";
 
 export default function AdminPatientsPage() {
   const [currentRole, setCurrentRole] = useState<UserRole>("admin");
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [patients, setPatients] = useState<PatientProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatientPhone, setSelectedPatientPhone] = useState<string | null>(null);
+
+  const loadPatients = async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchPatientsCRM();
+      setPatients(data);
+    } catch (err) {
+      console.error("Patients CRM fetch error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -33,32 +50,18 @@ export default function AdminPatientsPage() {
       })
       .catch(() => {});
 
-    try {
-      const raw = localStorage.getItem("sch_appointments_store");
-      if (raw) setAppointments(JSON.parse(raw));
-    } catch {}
+    loadPatients();
   }, []);
 
-  const patientsMap = new Map<string, { name: string; phone: string; dob: string; appointments: Appointment[] }>();
-  appointments.forEach((apt) => {
-    const phone = apt.patientPhone;
-    const existing = patientsMap.get(phone) || {
-      name: apt.patientName,
-      phone: apt.patientPhone,
-      dob: apt.patientDob,
-      appointments: [],
-    };
-    existing.appointments.push(apt);
-    patientsMap.set(phone, existing);
-  });
-
-  const allPatients = Array.from(patientsMap.values());
-  const filteredPatients = allPatients.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.phone.includes(searchQuery)
+  const filteredPatients = patients.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.phone.includes(searchQuery)
   );
 
-  const selectedPatient = selectedPatientPhone ? patientsMap.get(selectedPatientPhone) : null;
+  const selectedPatient = selectedPatientPhone
+    ? patients.find((p) => p.phone === selectedPatientPhone) || null
+    : null;
 
   if (currentRole !== "admin") {
     return (
@@ -85,142 +88,173 @@ export default function AdminPatientsPage() {
             </p>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--slate)]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search patients by name or phone..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none bg-white"
-            />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadPatients}
+              disabled={isLoading}
+              className="btn btn-outline text-xs py-1.5 px-3 flex items-center gap-1.5 border-[var(--mist)] bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              <RefreshCw size={13} className={isLoading ? "animate-spin text-[var(--primary)]" : ""} />
+              <span>Refresh</span>
+            </button>
+
+            <div className="relative w-full sm:w-72">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--slate)]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search patients by name or phone..."
+                className="w-full pl-9 pr-4 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none bg-white"
+              />
+            </div>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
+          {/* Patients Directory */}
           <div className="card p-4 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-3">
-            <h2 className="font-display font-semibold text-sm text-[var(--navy-950)] px-2">
-              Registered Patients ({filteredPatients.length})
-            </h2>
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--mist)]">
+              <span className="font-display font-semibold text-xs text-[var(--navy-950)]">
+                Registered Patients ({filteredPatients.length})
+              </span>
+              <Users size={15} className="text-[var(--primary)]" />
+            </div>
 
-            <div className="space-y-1 max-h-[70vh] overflow-y-auto">
-              {filteredPatients.length === 0 ? (
-                <p className="text-xs text-[var(--slate)] p-3 text-center">No patients found.</p>
+            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+              {isLoading ? (
+                <div className="p-8 text-center text-xs text-[var(--slate)]">
+                  Loading patient database...
+                </div>
+              ) : filteredPatients.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[var(--slate)]">
+                  No patient records matching your search.
+                </div>
               ) : (
-                filteredPatients.map((patient) => (
-                  <button
-                    key={patient.phone}
-                    onClick={() => setSelectedPatientPhone(patient.phone)}
-                    className={`w-full text-left p-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${
-                      selectedPatientPhone === patient.phone
-                        ? "bg-[var(--primary)] text-white shadow-xs"
-                        : "text-[var(--slate)] hover:bg-[var(--cloud)] hover:text-[var(--navy-950)]"
-                    }`}
-                  >
-                    <div>
-                      <p className="leading-tight">{patient.name}</p>
-                      <p className={`text-[10px] font-mono ${selectedPatientPhone === patient.phone ? "text-white/80" : "text-[var(--slate)]"}`}>
-                        {patient.phone}
+                filteredPatients.map((patient) => {
+                  const isSelected = selectedPatientPhone === patient.phone;
+                  return (
+                    <button
+                      key={patient.phone}
+                      type="button"
+                      onClick={() => setSelectedPatientPhone(patient.phone)}
+                      className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-[var(--primary)] bg-sky-50/50 shadow-xs"
+                          : "border-[var(--mist)] bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-xs text-[var(--navy-950)]">{patient.name}</p>
+                        <span className="chip chip-diagnostic text-[10px] py-0.5 px-2">
+                          {patient.totalVisits} {patient.totalVisits === 1 ? "visit" : "visits"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--slate)] mt-1 font-mono">{patient.phone}</p>
+                      <p className="text-[10px] text-[var(--slate)] mt-0.5">
+                        DOB: {formatDisplayDate(patient.dob)}
                       </p>
-                    </div>
-                    <span className="text-[10px] font-bold">
-                      {patient.appointments.length} {patient.appointments.length === 1 ? "Visit" : "Visits"}
-                    </span>
-                  </button>
-                ))
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
 
-          <div className="lg:col-span-2 space-y-5">
-            {selectedPatient ? (
-              <div className="card p-6 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-5">
-                <div className="flex items-start justify-between pb-4 border-b border-[var(--mist)]">
+          {/* Patient Detail & Cross-Visit Timeline */}
+          <div className="lg:col-span-2">
+            {!selectedPatient ? (
+              <div className="card p-12 bg-white border border-[var(--mist)] rounded-2xl shadow-xs text-center flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--cloud)] flex items-center justify-center text-[var(--slate)] mb-3">
+                  <Users size={24} />
+                </div>
+                <h3 className="font-display font-semibold text-base text-[var(--navy-950)]">
+                  Select a Patient
+                </h3>
+                <p className="text-xs text-[var(--slate)] mt-1 max-w-sm">
+                  Click on any patient record on the left to view their complete lifetime consultation history, diagnosis notes, and booking slips.
+                </p>
+              </div>
+            ) : (
+              <div className="card p-6 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[var(--mist)] gap-2">
                   <div>
-                    <h3 className="font-display font-bold text-lg text-[var(--navy-950)]">
-                      {selectedPatient.name}
-                    </h3>
-                    <div className="flex items-center gap-4 text-xs text-[var(--slate)] mt-1">
-                      <span>Phone: <strong className="font-mono">{selectedPatient.phone}</strong></span>
-                      <span>DOB: <strong>{selectedPatient.dob}</strong></span>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-display font-bold text-lg text-[var(--navy-950)]">
+                        {selectedPatient.name}
+                      </h2>
+                      <span className="chip chip-diagnostic text-xs py-0.5 px-2">
+                        {selectedPatient.totalVisits} Lifetime Consultations
+                      </span>
                     </div>
+                    <p className="text-xs text-[var(--slate)] mt-1 font-mono">
+                      Phone: {selectedPatient.phone} &bull; DOB: {formatDisplayDate(selectedPatient.dob)}
+                    </p>
                   </div>
-                  <span className="chip chip-diagnostic text-xs py-1 px-3">
-                    {selectedPatient.appointments.length} Total Visits
-                  </span>
                 </div>
 
+                {/* Consultation History Timeline */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--slate)]">
-                    Lifetime Consultation Timeline
-                  </h4>
+                  <h3 className="font-display font-semibold text-sm text-[var(--navy-950)]">
+                    Cross-Visit Timeline &amp; History
+                  </h3>
 
                   <div className="space-y-3">
-                    {selectedPatient.appointments
-                      .sort((a, b) => new Date(b.preferredDate).getTime() - new Date(a.preferredDate).getTime())
-                      .map((apt) => (
-                        <div
-                          key={apt.id}
-                          className="p-4 rounded-xl border border-[var(--mist)] bg-[var(--cloud)]/30 space-y-2.5 text-xs"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-xs text-[var(--navy-950)]">
-                                {apt.bookingReference}
-                              </span>
-                              <span className="text-[11px] text-[var(--slate)]">
-                                ({formatDisplayDate(apt.preferredDate)})
-                              </span>
-                            </div>
-
+                    {selectedPatient.appointments.map((apt) => (
+                      <div
+                        key={apt.id}
+                        className="p-4 rounded-xl border border-[var(--mist)] bg-[var(--cloud)]/20 space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-[var(--primary)] bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200">
+                              {apt.bookingReference}
+                            </span>
                             <span
                               className={`chip text-[10px] font-bold py-0.5 px-2 ${
                                 apt.status === "Confirmed"
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : "bg-blue-50 text-blue-700 border-blue-200"
+                                  : apt.status === "Completed"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : apt.status === "Cancelled"
+                                  ? "bg-red-50 text-red-700 border-red-200"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
                               }`}
                             >
                               {apt.status}
                             </span>
                           </div>
 
-                          <div className="grid sm:grid-cols-2 gap-2 text-xs">
-                            <div className="flex items-center gap-1.5 text-[var(--slate)]">
-                              <Stethoscope size={14} className="text-[var(--primary)] shrink-0" />
-                              <span>{apt.doctorName} ({apt.departmentName})</span>
-                            </div>
+                          <button
+                            type="button"
+                            onClick={() => downloadBookingSlipPdf(apt)}
+                            className="btn btn-outline text-[11px] py-1 px-2.5 flex items-center gap-1 border-[var(--mist)] hover:border-[var(--primary)] hover:text-[var(--primary)] bg-white cursor-pointer"
+                          >
+                            <Download size={12} />
+                            <span>Download Slip</span>
+                          </button>
+                        </div>
 
-                            <div className="flex items-center gap-1.5 text-[var(--slate)]">
-                              <Clock size={14} className="text-[var(--primary)] shrink-0" />
-                              <span>{apt.preferredTimeSlot || "OPD Hours"}</span>
-                            </div>
+                        <div className="grid sm:grid-cols-2 gap-2 text-xs text-[var(--slate)] pt-1">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar size={13} className="text-[var(--primary)] shrink-0" />
+                            <span>Date: <strong className="text-[var(--navy-950)]">{formatDisplayDate(apt.preferredDate)}</strong> ({apt.preferredTimeSlot || "OPD"})</span>
                           </div>
-
-                          {apt.message && (
-                            <p className="text-[11px] text-[var(--slate)] bg-white p-2 rounded-lg border border-[var(--mist)]">
-                              <strong>Notes:</strong> {apt.message}
-                            </p>
-                          )}
-
-                          <div className="pt-2 border-t border-[var(--mist)] flex justify-end">
-                            <button
-                              onClick={() => downloadBookingSlipPdf(apt)}
-                              className="btn btn-outline text-[10px] py-1 px-2.5 gap-1"
-                            >
-                              <Download size={12} />
-                              <span>Download PDF Slip</span>
-                            </button>
+                          <div className="flex items-center gap-1.5">
+                            <Stethoscope size={13} className="text-[var(--primary)] shrink-0" />
+                            <span>Physician: <strong className="text-[var(--navy-950)]">{apt.doctorName}</strong> ({apt.departmentName})</span>
                           </div>
                         </div>
-                      ))}
+
+                        {apt.message && (
+                          <div className="mt-2 p-2.5 rounded-lg bg-amber-50/50 border border-amber-200/60 text-xs text-amber-900">
+                            <span className="font-semibold">Patient Symptoms / Clinical Notes:</span> {apt.message}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="card p-12 bg-white border border-[var(--mist)] rounded-2xl shadow-xs text-center text-xs text-[var(--slate)]">
-                <Users size={32} className="mx-auto mb-2 text-[var(--mist)]" />
-                <p className="font-semibold text-[var(--navy-950)]">Select a patient</p>
-                <p className="mt-0.5">Click on any patient record to view their lifetime cross-visit history.</p>
               </div>
             )}
           </div>

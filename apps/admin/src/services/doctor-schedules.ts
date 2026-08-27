@@ -1,74 +1,148 @@
 import type {
   DoctorWeeklySchedule,
   DoctorAvailabilityException,
+  ExceptionType,
+  DayOfWeek,
 } from "@sch/types";
+import { createClient } from "@/lib/supabase/client";
 
-const SCHEDULES_STORAGE_KEY = "sch_doctor_weekly_schedules";
-const EXCEPTIONS_STORAGE_KEY = "sch_doctor_exceptions";
-
-const DEFAULT_WEEKLY_SCHEDULES: DoctorWeeklySchedule[] = [];
-
-export function getStoredWeeklySchedules(): DoctorWeeklySchedule[] {
-  if (typeof window === "undefined") return DEFAULT_WEEKLY_SCHEDULES;
-  try {
-    const raw = localStorage.getItem(SCHEDULES_STORAGE_KEY);
-    if (!raw) {
-      return DEFAULT_WEEKLY_SCHEDULES;
+export async function fetchWeeklySchedules(doctorId?: string): Promise<DoctorWeeklySchedule[]> {
+  const supabase = createClient();
+  if (supabase) {
+    try {
+      let query = supabase.from("doctor_weekly_schedules").select("*");
+      if (doctorId) {
+        query = query.eq("doctor_id", doctorId);
+      }
+      const { data, error } = await query;
+      if (!error && data) {
+        return data.map((row: any) => ({
+          id: row.id,
+          doctorId: row.doctor_id,
+          dayOfWeek: row.day_of_week as DayOfWeek,
+          startTime: row.start_time,
+          endTime: row.end_time,
+          slotDurationMinutes: row.slot_duration_minutes || 30,
+          isActive: row.is_active ?? true,
+        }));
+      }
+    } catch (err) {
+      console.warn("Supabase fetchWeeklySchedules error:", err);
     }
-    return JSON.parse(raw);
-  } catch {
-    return DEFAULT_WEEKLY_SCHEDULES;
   }
+  return [];
 }
 
-export function saveStoredWeeklySchedules(schedules: DoctorWeeklySchedule[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(SCHEDULES_STORAGE_KEY, JSON.stringify(schedules));
-  } catch (err) {
-    console.error("Failed to save weekly schedules", err);
+export async function saveWeeklySchedules(
+  doctorId: string,
+  schedules: DoctorWeeklySchedule[]
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+  if (supabase) {
+    try {
+      // 1. Remove existing schedules for this doctor
+      await supabase.from("doctor_weekly_schedules").delete().eq("doctor_id", doctorId);
+
+      // 2. Insert updated schedules
+      if (schedules.length > 0) {
+        const rows = schedules.map((s) => ({
+          id: s.id || `sched-${doctorId}-${s.dayOfWeek.toLowerCase()}-${Date.now()}`,
+          doctor_id: doctorId,
+          day_of_week: s.dayOfWeek,
+          start_time: s.startTime,
+          end_time: s.endTime,
+          slot_duration_minutes: s.slotDurationMinutes || 30,
+          is_active: s.isActive ?? true,
+        }));
+
+        const { error } = await supabase.from("doctor_weekly_schedules").insert(rows);
+        if (error) throw error;
+      }
+      return { success: true };
+    } catch (err: any) {
+      console.error("Supabase saveWeeklySchedules error:", err);
+      return { success: false, error: err.message };
+    }
   }
+  return { success: false, error: "Database client unavailable" };
 }
 
-export function getStoredExceptions(): DoctorAvailabilityException[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(EXCEPTIONS_STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
+export async function fetchDoctorExceptions(doctorId?: string): Promise<DoctorAvailabilityException[]> {
+  const supabase = createClient();
+  if (supabase) {
+    try {
+      let query = supabase.from("doctor_exceptions").select("*");
+      if (doctorId) {
+        query = query.eq("doctor_id", doctorId);
+      }
+      const { data, error } = await query;
+      if (!error && data) {
+        return data.map((row: any) => ({
+          id: row.id,
+          doctorId: row.doctor_id,
+          date: row.date,
+          type: row.type as ExceptionType,
+          reason: row.reason || undefined,
+          startTime: row.start_time || undefined,
+          endTime: row.end_time || undefined,
+        }));
+      }
+    } catch (err) {
+      console.warn("Supabase fetchDoctorExceptions error:", err);
+    }
   }
+  return [];
 }
 
-export function saveStoredExceptions(exceptions: DoctorAvailabilityException[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(EXCEPTIONS_STORAGE_KEY, JSON.stringify(exceptions));
-  } catch (err) {
-    console.error("Failed to save exceptions", err);
+export async function addOrUpdateException(
+  exception: DoctorAvailabilityException
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+  if (supabase) {
+    try {
+      const row = {
+        id: exception.id || `ex-${exception.doctorId}-${exception.date}`,
+        doctor_id: exception.doctorId,
+        date: exception.date,
+        type: exception.type,
+        reason: exception.reason || null,
+        start_time: exception.startTime || null,
+        end_time: exception.endTime || null,
+      };
+
+      const { error } = await supabase
+        .from("doctor_exceptions")
+        .upsert(row, { onConflict: "doctor_id,date" });
+
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      console.error("Supabase addOrUpdateException error:", err);
+      return { success: false, error: err.message };
+    }
   }
+  return { success: false, error: "Database client unavailable" };
 }
 
-export function addOrUpdateException(exception: DoctorAvailabilityException): void {
-  const all = getStoredExceptions();
-  const existingIndex = all.findIndex(
-    (e) => e.doctorId === exception.doctorId && e.date === exception.date
-  );
+export async function removeException(
+  doctorId: string,
+  date: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from("doctor_exceptions")
+        .delete()
+        .eq("doctor_id", doctorId)
+        .eq("date", date);
 
-  if (existingIndex >= 0) {
-    all[existingIndex] = exception;
-  } else {
-    all.push(exception);
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      console.error("Supabase removeException error:", err);
+      return { success: false, error: err.message };
+    }
   }
-
-  saveStoredExceptions(all);
-}
-
-export function removeException(doctorId: string, date: string): void {
-  const all = getStoredExceptions();
-  const filtered = all.filter(
-    (e) => !(e.doctorId === doctorId && e.date === date)
-  );
-  saveStoredExceptions(filtered);
+  return { success: false, error: "Database client unavailable" };
 }

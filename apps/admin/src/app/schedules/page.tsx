@@ -13,20 +13,21 @@ import {
   ChevronRight,
   X,
   FileSpreadsheet,
+  RefreshCw,
 } from "lucide-react";
 import { AdminLayout } from "@/components/AdminLayout";
 import { useDoctors } from "@/services/doctors";
 import { format12Hour, formatDisplayDate } from "@/lib/date-utils";
 import {
-  getStoredWeeklySchedules,
-  saveStoredWeeklySchedules,
-  getStoredExceptions,
+  fetchWeeklySchedules,
+  saveWeeklySchedules,
+  fetchDoctorExceptions,
   addOrUpdateException,
   removeException,
 } from "@/services/doctor-schedules";
 import { exportSingleDoctorBookingsXlsx } from "@/lib/excel-export";
 import { getBookingsForDate } from "@/services/admin-bookings";
-import { departments } from "@/data/departments";
+import { useDepartments } from "@/services/departments";
 import type {
   DoctorWeeklySchedule,
   DoctorAvailabilityException,
@@ -47,11 +48,13 @@ const DAYS: DayOfWeek[] = [
 
 export default function AdminSchedulesPage() {
   const [currentRole, setCurrentRole] = useState<UserRole>("admin");
-  const { data: doctors, isLoading } = useDoctors({ activeOnly: false });
+  const { data: doctors, isLoading: isDoctorsLoading } = useDoctors({ activeOnly: false });
+  const { departments } = useDepartments();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [weeklySchedules, setWeeklySchedules] = useState<DoctorWeeklySchedule[]>([]);
   const [exceptions, setExceptions] = useState<DoctorAvailabilityException[]>([]);
   const [activeTab, setActiveTab] = useState<"weekly" | "calendar">("calendar");
+  const [isLoadingSchedules, setIsLoadingSchedules] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const [viewDate, setViewDate] = useState(() => new Date());
@@ -67,6 +70,22 @@ export default function AdminSchedulesPage() {
   const [newEndTime, setNewEndTime] = useState("13:00");
   const [newDuration, setNewDuration] = useState(30);
 
+  const loadData = async (docId?: string) => {
+    setIsLoadingSchedules(true);
+    try {
+      const [scheds, excs] = await Promise.all([
+        fetchWeeklySchedules(docId),
+        fetchDoctorExceptions(docId),
+      ]);
+      setWeeklySchedules(scheds);
+      setExceptions(excs);
+    } catch (err) {
+      console.error("Failed to load schedules:", err);
+    } finally {
+      setIsLoadingSchedules(false);
+    }
+  };
+
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
@@ -79,9 +98,6 @@ export default function AdminSchedulesPage() {
         }
       })
       .catch(() => {});
-
-    setWeeklySchedules(getStoredWeeklySchedules());
-    setExceptions(getStoredExceptions());
   }, []);
 
   useEffect(() => {
@@ -94,6 +110,12 @@ export default function AdminSchedulesPage() {
     }
   }, [doctors, selectedDoctorId]);
 
+  useEffect(() => {
+    if (selectedDoctorId) {
+      loadData(selectedDoctorId);
+    }
+  }, [selectedDoctorId]);
+
   const currentDoctor = doctors?.find((d) => d.id === selectedDoctorId);
   const currentDept = currentDoctor
     ? departments.find((dept) => dept.slug === currentDoctor.departmentSlug)
@@ -102,7 +124,7 @@ export default function AdminSchedulesPage() {
   const doctorWeeklySchedules = weeklySchedules.filter((s) => s.doctorId === selectedDoctorId);
   const doctorExceptions = exceptions.filter((e) => e.doctorId === selectedDoctorId);
 
-  const handleAddWeeklySlot = (e: React.FormEvent) => {
+  const handleAddWeeklySlot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDoctorId) return;
 
@@ -116,20 +138,29 @@ export default function AdminSchedulesPage() {
       isActive: true,
     };
 
-    const updated = [...weeklySchedules, newSlot];
-    setWeeklySchedules(updated);
-    saveStoredWeeklySchedules(updated);
+    const updated = [...doctorWeeklySchedules, newSlot];
+    const res = await saveWeeklySchedules(selectedDoctorId, updated);
 
-    setFeedback(`Weekly slot added for ${newDay} (${format12Hour(newStartTime)}–${format12Hour(newEndTime)}).`);
-    setTimeout(() => setFeedback(null), 3000);
+    if (res.success) {
+      setWeeklySchedules(updated);
+      setFeedback(`Weekly slot added for ${newDay} (${format12Hour(newStartTime)}–${format12Hour(newEndTime)}).`);
+    } else {
+      setFeedback(`Error saving schedule: ${res.error}`);
+    }
+    setTimeout(() => setFeedback(null), 3500);
   };
 
-  const handleRemoveWeeklySlot = (id: string) => {
-    const updated = weeklySchedules.filter((s) => s.id !== id);
-    setWeeklySchedules(updated);
-    saveStoredWeeklySchedules(updated);
-    setFeedback("Weekly schedule updated.");
-    setTimeout(() => setFeedback(null), 3000);
+  const handleRemoveWeeklySlot = async (id: string) => {
+    const updated = doctorWeeklySchedules.filter((s) => s.id !== id);
+    const res = await saveWeeklySchedules(selectedDoctorId, updated);
+
+    if (res.success) {
+      setWeeklySchedules(updated);
+      setFeedback("Weekly schedule updated.");
+    } else {
+      setFeedback(`Error removing slot: ${res.error}`);
+    }
+    setTimeout(() => setFeedback(null), 3500);
   };
 
   const handleDateClick = (dateStr: string) => {
@@ -148,12 +179,12 @@ export default function AdminSchedulesPage() {
     }
   };
 
-  const handleSaveException = (e: React.FormEvent) => {
+  const handleSaveException = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDoctorId || !selectedDateStr) return;
 
     const newEx: DoctorAvailabilityException = {
-      id: `ex-${Date.now()}`,
+      id: `ex-${selectedDoctorId}-${selectedDateStr}`,
       doctorId: selectedDoctorId,
       date: selectedDateStr,
       type: exceptionType,
@@ -163,20 +194,28 @@ export default function AdminSchedulesPage() {
       createdAt: new Date().toISOString(),
     };
 
-    addOrUpdateException(newEx);
-    setExceptions(getStoredExceptions());
-    setSelectedDateStr(null);
-    setFeedback(`Availability exception saved for ${formatDisplayDate(selectedDateStr)}.`);
-    setTimeout(() => setFeedback(null), 3000);
+    const res = await addOrUpdateException(newEx);
+    if (res.success) {
+      await loadData(selectedDoctorId);
+      setSelectedDateStr(null);
+      setFeedback(`Availability exception saved for ${formatDisplayDate(selectedDateStr)}.`);
+    } else {
+      setFeedback(`Error saving exception: ${res.error}`);
+    }
+    setTimeout(() => setFeedback(null), 3500);
   };
 
-  const handleClearException = () => {
+  const handleClearException = async () => {
     if (!selectedDoctorId || !selectedDateStr) return;
-    removeException(selectedDoctorId, selectedDateStr);
-    setExceptions(getStoredExceptions());
-    setSelectedDateStr(null);
-    setFeedback(`Exception cleared. Default schedule restored for ${formatDisplayDate(selectedDateStr)}.`);
-    setTimeout(() => setFeedback(null), 3000);
+    const res = await removeException(selectedDoctorId, selectedDateStr);
+    if (res.success) {
+      await loadData(selectedDoctorId);
+      setSelectedDateStr(null);
+      setFeedback(`Exception cleared. Default schedule restored for ${formatDisplayDate(selectedDateStr)}.`);
+    } else {
+      setFeedback(`Error clearing exception: ${res.error}`);
+    }
+    setTimeout(() => setFeedback(null), 3500);
   };
 
   const handleExportDoctorDay = async (dateStr: string) => {
@@ -219,460 +258,374 @@ export default function AdminSchedulesPage() {
         </div>
 
         {feedback && (
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
-            <CheckCircle2 size={16} className="shrink-0" />
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
             <span>{feedback}</span>
           </div>
         )}
 
-        <div className="grid lg:grid-cols-4 gap-6">
-          <div className="card p-4 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-3">
-            <h2 className="font-display font-semibold text-xs uppercase tracking-wider text-[var(--slate)] px-1">
-              Select Specialist
-            </h2>
-            <div className="space-y-1">
-              {isLoading ? (
-                <p className="text-xs text-[var(--slate)] p-2">Loading physicians...</p>
-              ) : !doctors || doctors.length === 0 ? (
-                <div className="p-3 text-center text-xs text-[var(--slate)] bg-[var(--cloud)] rounded-xl">
-                  No doctors registered yet.
-                </div>
-              ) : (
-                doctors.map((doc) => {
-                  const docWeeklyCount = weeklySchedules.filter((s) => s.doctorId === doc.id).length;
-                  const docExCount = exceptions.filter((e) => e.doctorId === doc.id).length;
-                  const isSelected = selectedDoctorId === doc.id;
-                  return (
-                    <button
-                      key={doc.id}
-                      onClick={() => setSelectedDoctorId(doc.id)}
-                      className={`w-full text-left p-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-all ${
-                        isSelected
-                          ? "bg-[var(--primary)] text-white shadow-xs"
-                          : "text-[var(--slate)] hover:bg-[var(--cloud)] hover:text-[var(--navy-950)]"
-                      }`}
-                    >
-                      <div>
-                        <p className="leading-tight">{doc.name}</p>
-                        <p className={`text-[10px] ${isSelected ? "text-white/80" : "text-[var(--slate)]"}`}>
-                          {doc.departmentSlug}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] font-bold block">{docWeeklyCount} Slots</span>
-                        {docExCount > 0 && (
-                          <span className={`text-[9px] ${isSelected ? "text-amber-200" : "text-amber-600"}`}>
-                            {docExCount} Overrides
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
+        {/* Doctor Selector Ribbon */}
+        <div className="card p-4 bg-white border border-[var(--mist)] rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <span className="text-xs font-semibold text-[var(--slate)]">Select Physician:</span>
+            <select
+              value={selectedDoctorId}
+              onChange={(e) => setSelectedDoctorId(e.target.value)}
+              className="text-xs font-semibold text-[var(--navy-950)] bg-[var(--cloud)] border border-[var(--mist)] rounded-xl px-3 py-2 outline-none focus:border-[var(--primary)]"
+            >
+              {doctors?.map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.name} ({departments.find((d) => d.slug === doc.departmentSlug)?.name || doc.departmentSlug})
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="lg:col-span-3 space-y-5">
-            {!currentDoctor ? (
-              <div className="card p-12 bg-white border border-[var(--mist)] rounded-2xl shadow-xs text-center text-xs text-[var(--slate)]">
-                <Clock size={36} className="mx-auto mb-3 text-[var(--primary)] opacity-60" />
-                <h3 className="text-base font-bold text-[var(--navy-950)] mb-1">
-                  No Doctor Selected
-                </h3>
-                <p className="max-w-md mx-auto">
-                  {doctors && doctors.length > 0
-                    ? "Select a physician from the sidebar to manage their consultation schedule."
-                    : "No doctors registered in the system. Add doctors in the Doctor Management module first."}
-                </p>
-              </div>
-            ) : (
-              <div className="card p-6 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--mist)]">
-                  <div>
-                    <h3 className="font-display font-bold text-lg text-[var(--navy-950)]">
-                      {currentDoctor.name}
-                    </h3>
-                    <p className="text-xs text-[var(--slate)]">
-                      Department: {currentDept?.name || currentDoctor.departmentSlug}
-                    </p>
-                  </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => loadData(selectedDoctorId)}
+              disabled={isLoadingSchedules}
+              className="btn btn-outline text-xs py-1.5 px-3 flex items-center gap-1.5 border-[var(--mist)] bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              <RefreshCw size={13} className={isLoadingSchedules ? "animate-spin text-[var(--primary)]" : ""} />
+              <span>Sync Live DB</span>
+            </button>
 
-                  <div className="flex rounded-xl bg-[var(--cloud)] p-1 border border-[var(--mist)] text-xs font-semibold">
-                    <button
-                      onClick={() => setActiveTab("calendar")}
-                      className={`py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all ${
-                        activeTab === "calendar"
-                          ? "bg-white text-[var(--navy-950)] shadow-xs"
-                          : "text-[var(--slate)] hover:text-[var(--navy-950)]"
-                      }`}
-                    >
-                      <CalendarIcon size={14} />
-                      <span>Availability Calendar</span>
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("weekly")}
-                      className={`py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all ${
-                        activeTab === "weekly"
-                          ? "bg-white text-[var(--navy-950)] shadow-xs"
-                          : "text-[var(--slate)] hover:text-[var(--navy-950)]"
-                      }`}
-                    >
-                      <Clock size={14} />
-                      <span>Weekly Pattern ({doctorWeeklySchedules.length})</span>
-                    </button>
-                  </div>
-                </div>
-
-                {activeTab === "calendar" && (
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={prevMonth}
-                          className="p-1.5 rounded-lg border border-[var(--mist)] hover:bg-[var(--cloud)]"
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-                        <span className="font-display font-bold text-sm text-[var(--navy-950)] min-w-[140px] text-center">
-                          {monthName} {year}
-                        </span>
-                        <button
-                          onClick={nextMonth}
-                          className="p-1.5 rounded-lg border border-[var(--mist)] hover:bg-[var(--cloud)]"
-                        >
-                          <ChevronRight size={16} />
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--slate)]">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                          <span>Available</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                          <span>Leave / Blocked</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                          <span>Custom / Partial</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
-                          <span>Off Day</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="border border-[var(--mist)] rounded-2xl overflow-hidden shadow-xs">
-                      <div className="grid grid-cols-7 bg-[var(--cloud)]/70 border-b border-[var(--mist)] text-center text-[10px] font-bold uppercase tracking-wider text-[var(--slate)] py-2">
-                        <span>Sun</span>
-                        <span>Mon</span>
-                        <span>Tue</span>
-                        <span>Wed</span>
-                        <span>Thu</span>
-                        <span>Fri</span>
-                        <span>Sat</span>
-                      </div>
-
-                      <div className="grid grid-cols-7 divide-x divide-y divide-[var(--mist)] bg-white text-xs">
-                        {Array.from({ length: firstDayIndex }).map((_, i) => (
-                          <div key={`empty-${i}`} className="min-h-[85px] bg-[var(--cloud)]/20 p-2" />
-                        ))}
-
-                        {Array.from({ length: daysInMonth }).map((_, i) => {
-                          const dayNum = i + 1;
-                          const dateObj = new Date(year, month, dayNum);
-                          const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
-                          const dayOfWeek = DAYS[dateObj.getDay() === 0 ? 6 : dateObj.getDay() - 1];
-
-                          const hasWeekly = doctorWeeklySchedules.some(
-                            (s) => s.dayOfWeek === dayOfWeek && s.isActive !== false
-                          );
-
-                          const ex = doctorExceptions.find((e) => e.date === dateStr);
-
-                          let statusStyle = "bg-gray-50 border-gray-200 text-gray-400";
-                          let badgeText = "Off";
-
-                          if (ex) {
-                            if (ex.type === "full_day_unavailable") {
-                              statusStyle = "bg-red-50/80 border-red-200 text-red-700";
-                              badgeText = ex.reason || "On Leave";
-                            } else if (ex.type === "partial_unavailable") {
-                              statusStyle = "bg-amber-50/80 border-amber-200 text-amber-800";
-                              badgeText = "Partial Block";
-                            } else if (ex.type === "custom_hours") {
-                              statusStyle = "bg-blue-50/80 border-blue-200 text-blue-800";
-                              badgeText = `${format12Hour(ex.startTime)}–${format12Hour(ex.endTime)}`;
-                            }
-                          } else if (hasWeekly) {
-                            statusStyle = "bg-emerald-50/60 border-emerald-200 text-emerald-800";
-                            badgeText = "Available";
-                          }
-
-                          return (
-                            <div
-                              key={dateStr}
-                              onClick={() => handleDateClick(dateStr)}
-                              className={`min-h-[85px] p-2 flex flex-col justify-between cursor-pointer hover:bg-sky-50/50 transition-colors ${statusStyle}`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-xs text-[var(--navy-950)]">{dayNum}</span>
-                                {ex && <Ban size={12} className="text-red-500 shrink-0" />}
-                              </div>
-
-                              <div className="mt-1">
-                                <span className="text-[10px] font-semibold truncate block leading-tight">
-                                  {badgeText}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center justify-between pt-1 border-t border-black/5 text-[9px] opacity-75">
-                                <span>Click to edit</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === "weekly" && (
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--slate)] mb-3">
-                        Active Weekly Time Windows ({doctorWeeklySchedules.length})
-                      </h4>
-
-                      {doctorWeeklySchedules.length === 0 ? (
-                        <div className="p-4 rounded-xl bg-[var(--cloud)] border border-[var(--mist)] text-xs text-[var(--slate)] text-center">
-                          No recurring schedule defined. Add consultation blocks below.
-                        </div>
-                      ) : (
-                        <div className="grid sm:grid-cols-2 gap-3">
-                          {doctorWeeklySchedules.map((slot) => (
-                            <div
-                              key={slot.id}
-                              className="p-3.5 rounded-xl border border-[var(--mist)] bg-[var(--cloud)]/40 flex items-center justify-between text-xs"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-white border border-[var(--mist)] text-[var(--primary)] font-bold text-xs">
-                                  {slot.dayOfWeek.substring(0, 3)}
-                                </div>
-                                <div>
-                                  <p className="font-bold text-[var(--navy-950)]">{slot.dayOfWeek}</p>
-                                  <p className="text-[11px] text-[var(--slate)]">
-                                    {format12Hour(slot.startTime)} – {format12Hour(slot.endTime)} ({slot.slotDurationMinutes} min slots)
-                                  </p>
-                                </div>
-                              </div>
-
-                              <button
-                                onClick={() => handleRemoveWeeklySlot(slot.id)}
-                                className="p-1.5 rounded-lg text-[var(--slate)] hover:text-red-600 hover:bg-red-50 transition-colors"
-                                title="Remove time block"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-5 border-t border-[var(--mist)]">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--slate)] mb-3">
-                        Add Weekly Consultation Block (Supports Multiple Sessions/Day)
-                      </h4>
-
-                      <form onSubmit={handleAddWeeklySlot} className="grid sm:grid-cols-4 gap-3 items-end">
-                        <div>
-                          <label className="block text-[11px] font-semibold text-[var(--navy-950)] mb-1">
-                            Day of Week
-                          </label>
-                          <select
-                            value={newDay}
-                            onChange={(e) => setNewDay(e.target.value as DayOfWeek)}
-                            className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none bg-white font-medium"
-                          >
-                            {DAYS.map((d) => (
-                              <option key={d} value={d}>
-                                {d}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-semibold text-[var(--navy-950)] mb-1">
-                            Session Start
-                          </label>
-                          <input
-                            type="time"
-                            value={newStartTime}
-                            onChange={(e) => setNewStartTime(e.target.value)}
-                            required
-                            className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-semibold text-[var(--navy-950)] mb-1">
-                            Session End
-                          </label>
-                          <input
-                            type="time"
-                            value={newEndTime}
-                            onChange={(e) => setNewEndTime(e.target.value)}
-                            required
-                            className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-semibold text-[var(--navy-950)] mb-1">
-                            Slot Duration (Minutes)
-                          </label>
-                          <select
-                            value={newDuration}
-                            onChange={(e) => setNewDuration(Number(e.target.value))}
-                            className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none bg-white font-medium"
-                          >
-                            <option value={15}>15 Minutes</option>
-                            <option value={20}>20 Minutes</option>
-                            <option value={30}>30 Minutes</option>
-                            <option value={45}>45 Minutes</option>
-                            <option value={60}>60 Minutes</option>
-                          </select>
-                        </div>
-
-                        <div className="sm:col-span-4 flex justify-end pt-2">
-                          <button type="submit" className="btn btn-primary text-xs py-2 px-4 gap-1.5">
-                            <Plus size={14} />
-                            <span>Add Consultation Block</span>
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="flex bg-[var(--cloud)] p-1 rounded-xl border border-[var(--mist)]">
+              <button
+                type="button"
+                onClick={() => setActiveTab("calendar")}
+                className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                  activeTab === "calendar"
+                    ? "bg-white text-[var(--primary)] shadow-xs"
+                    : "text-[var(--slate)] hover:text-[var(--navy-950)]"
+                }`}
+              >
+                Calendar &amp; Leaves
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("weekly")}
+                className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                  activeTab === "weekly"
+                    ? "bg-white text-[var(--primary)] shadow-xs"
+                    : "text-[var(--slate)] hover:text-[var(--navy-950)]"
+                }`}
+              >
+                Weekly Roster
+              </button>
+            </div>
           </div>
         </div>
 
-        {selectedDateStr && currentDoctor && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-[var(--mist)]">
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--mist)] mb-4">
-                <div>
-                  <h3 className="font-display font-bold text-base text-[var(--navy-950)]">
-                    Override Availability: {formatDisplayDate(selectedDateStr)}
-                  </h3>
-                  <p className="text-xs text-[var(--slate)]">{currentDoctor.name}</p>
+        {/* Tab 1: Calendar & Leaves */}
+        {activeTab === "calendar" && (
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 card p-5 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--mist)]">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon size={18} className="text-[var(--primary)]" />
+                  <h2 className="font-display font-bold text-base text-[var(--navy-950)]">
+                    {monthName} {year}
+                  </h2>
                 </div>
-                <button
-                  onClick={() => setSelectedDateStr(null)}
-                  className="p-1.5 rounded-lg text-[var(--slate)] hover:bg-[var(--cloud)]"
-                >
-                  <X size={18} />
-                </button>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={prevMonth}
+                    className="p-1.5 rounded-lg border border-[var(--mist)] hover:bg-[var(--cloud)] text-[var(--slate)]"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button
+                    onClick={nextMonth}
+                    className="p-1.5 rounded-lg border border-[var(--mist)] hover:bg-[var(--cloud)] text-[var(--slate)]"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
               </div>
 
-              <form onSubmit={handleSaveException} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
-                    Exception Type
-                  </label>
-                  <select
-                    value={exceptionType}
-                    onChange={(e) => setExceptionType(e.target.value as ExceptionType)}
-                    className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none bg-white font-medium"
-                  >
-                    <option value="full_day_unavailable">Mark Entire Day Unavailable (Leave / Block)</option>
-                    <option value="partial_unavailable">Mark Specific Time Window Unavailable</option>
-                    <option value="custom_hours">Set Custom Consultation Hours for This Date</option>
-                  </select>
-                </div>
+              {/* Day names header */}
+              <div className="grid grid-cols-7 gap-1 text-center font-bold text-[11px] text-[var(--slate)] uppercase">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                  <div key={day} className="py-1">
+                    {day}
+                  </div>
+                ))}
+              </div>
 
-                {exceptionType === "full_day_unavailable" ? (
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1.5">
+                {Array.from({ length: firstDayIndex }).map((_, i) => (
+                  <div key={`empty-${i}`} className="min-h-[72px] bg-[var(--cloud)]/20 rounded-xl border border-transparent" />
+                ))}
+
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const dayNum = i + 1;
+                  const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+                  const ex = doctorExceptions.find((e) => e.date === dateStr);
+                  const isSelected = selectedDateStr === dateStr;
+
+                  return (
+                    <button
+                      key={dateStr}
+                      type="button"
+                      onClick={() => handleDateClick(dateStr)}
+                      className={`min-h-[72px] p-1.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-sky-50/50"
+                          : ex
+                          ? ex.type === "full_day_unavailable"
+                            ? "bg-red-50/60 border-red-200"
+                            : "bg-amber-50/60 border-amber-200"
+                          : "bg-white border-[var(--mist)] hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="font-bold text-xs text-[var(--navy-950)]">{dayNum}</span>
+
+                      {ex && (
+                        <div className="w-full truncate">
+                          <span
+                            className={`chip text-[9px] font-bold py-0.2 px-1 block truncate text-center ${
+                              ex.type === "full_day_unavailable"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {ex.reason || (ex.type === "full_day_unavailable" ? "On Leave" : "Custom")}
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Exception Drawer/Form */}
+            <div className="card p-5 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-4">
+              {!selectedDateStr ? (
+                <div className="text-center py-12 text-[var(--slate)] space-y-2">
+                  <CalendarIcon size={32} className="mx-auto text-[var(--slate)]/60" />
+                  <p className="text-xs">Click any calendar date to add leave, partial hours, or export schedule.</p>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveException} className="space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-[var(--mist)]">
+                    <div>
+                      <h3 className="font-display font-semibold text-sm text-[var(--navy-950)]">
+                        {formatDisplayDate(selectedDateStr)}
+                      </h3>
+                      <p className="text-[11px] text-[var(--slate)]">{currentDoctor?.name}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDateStr(null)}
+                      className="text-[var(--slate)] hover:text-[var(--navy-950)]"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
-                      Reason / Internal Note (Optional)
+                      Exception Type
+                    </label>
+                    <select
+                      value={exceptionType}
+                      onChange={(e) => setExceptionType(e.target.value as ExceptionType)}
+                      className="w-full text-xs bg-white border border-[var(--mist)] rounded-xl px-3 py-2 outline-none focus:border-[var(--primary)]"
+                    >
+                      <option value="full_day_unavailable">Full Day Unavailable (Leave / Block)</option>
+                      <option value="partial_unavailable">Partial Unavailable (Shift Adjustment)</option>
+                      <option value="custom_hours">Custom Operating Hours</option>
+                    </select>
+                  </div>
+
+                  {exceptionType !== "full_day_unavailable" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] text-[var(--slate)] mb-1">Start Time</label>
+                        <input
+                          type="time"
+                          value={exceptionStart}
+                          onChange={(e) => setExceptionStart(e.target.value)}
+                          className="w-full text-xs border border-[var(--mist)] rounded-xl px-2 py-1.5 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-[var(--slate)] mb-1">End Time</label>
+                        <input
+                          type="time"
+                          value={exceptionEnd}
+                          onChange={(e) => setExceptionEnd(e.target.value)}
+                          className="w-full text-xs border border-[var(--mist)] rounded-xl px-2 py-1.5 outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
+                      Reason / Display Note
                     </label>
                     <input
                       type="text"
                       value={exceptionReason}
                       onChange={(e) => setExceptionReason(e.target.value)}
-                      placeholder="e.g. Conference, Medical Leave"
-                      className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none"
+                      placeholder="e.g. Conference, Medical Leave, Emergency..."
+                      className="w-full text-xs border border-[var(--mist)] rounded-xl px-3 py-2 outline-none focus:border-[var(--primary)]"
                     />
                   </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
-                        Start Time
-                      </label>
-                      <input
-                        type="time"
-                        value={exceptionStart}
-                        onChange={(e) => setExceptionStart(e.target.value)}
-                        required
-                        className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
-                        End Time
-                      </label>
-                      <input
-                        type="time"
-                        value={exceptionEnd}
-                        onChange={(e) => setExceptionEnd(e.target.value)}
-                        required
-                        className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
 
-                <div className="flex items-center justify-between pt-3 border-t border-[var(--mist)]">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleClearException}
-                      className="text-xs text-red-600 hover:underline font-semibold"
-                    >
-                      Clear Override
+                  <div className="pt-2 flex flex-col gap-2">
+                    <button type="submit" className="btn btn-primary text-xs py-2 w-full justify-center">
+                      Save Exception to Database
                     </button>
+
+                    {doctorExceptions.some((e) => e.date === selectedDateStr) && (
+                      <button
+                        type="button"
+                        onClick={handleClearException}
+                        className="btn btn-outline text-xs py-2 w-full justify-center text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        Remove Leave &amp; Restore Schedule
+                      </button>
+                    )}
 
                     <button
                       type="button"
                       onClick={() => handleExportDoctorDay(selectedDateStr)}
-                      className="text-xs text-emerald-700 hover:underline font-semibold flex items-center gap-1"
+                      className="btn btn-outline text-xs py-2 w-full justify-center flex items-center gap-1.5 border-[var(--mist)] text-[var(--navy-950)] hover:bg-slate-50"
                     >
-                      <FileSpreadsheet size={12} />
-                      <span>Download .xlsx</span>
+                      <FileSpreadsheet size={14} className="text-emerald-600" />
+                      <span>Export Day&apos;s Appointments (Excel)</span>
                     </button>
                   </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDateStr(null)}
-                      className="btn btn-ghost text-xs py-2 px-3"
+        {/* Tab 2: Weekly Roster */}
+        {activeTab === "weekly" && (
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 card p-5 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--mist)]">
+                <h2 className="font-display font-semibold text-sm text-[var(--navy-950)]">
+                  Recurring Weekly Shift Windows — {currentDoctor?.name}
+                </h2>
+                <span className="chip chip-diagnostic text-xs py-0.5 px-2">
+                  {doctorWeeklySchedules.length} recurring {doctorWeeklySchedules.length === 1 ? "slot" : "slots"}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {doctorWeeklySchedules.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-[var(--slate)] bg-[var(--cloud)]/30 rounded-xl">
+                    No weekly recurring slots assigned. Default hospital OPD hours (09:00–17:00) will apply.
+                  </div>
+                ) : (
+                  doctorWeeklySchedules.map((slot) => (
+                    <div
+                      key={slot.id}
+                      className="p-3 rounded-xl border border-[var(--mist)] flex items-center justify-between bg-white hover:border-slate-300 transition-colors"
                     >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary text-xs py-2 px-4">
-                      Save Override
-                    </button>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-xs text-[var(--navy-950)] w-24">
+                          {slot.dayOfWeek}
+                        </span>
+                        <span className="text-xs text-[var(--slate)] font-mono">
+                          {format12Hour(slot.startTime)} – {format12Hour(slot.endTime)}
+                        </span>
+                        <span className="chip text-[10px] py-0.5 px-2 bg-sky-50 text-sky-700 border-sky-200">
+                          {slot.slotDurationMinutes} min interval
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWeeklySlot(slot.id)}
+                        className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Delete slot"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Add Slot Form */}
+            <div className="card p-5 bg-white border border-[var(--mist)] rounded-2xl shadow-xs space-y-4">
+              <h3 className="font-display font-semibold text-sm text-[var(--navy-950)] pb-2 border-b border-[var(--mist)]">
+                Add Weekly Shift
+              </h3>
+
+              <form onSubmit={handleAddWeeklySlot} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
+                    Day of Week
+                  </label>
+                  <select
+                    value={newDay}
+                    onChange={(e) => setNewDay(e.target.value as DayOfWeek)}
+                    className="w-full text-xs bg-white border border-[var(--mist)] rounded-xl px-3 py-2 outline-none focus:border-[var(--primary)]"
+                  >
+                    {DAYS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] text-[var(--slate)] mb-1">Start Time</label>
+                    <input
+                      type="time"
+                      value={newStartTime}
+                      onChange={(e) => setNewStartTime(e.target.value)}
+                      className="w-full text-xs border border-[var(--mist)] rounded-xl px-2 py-1.5 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-[var(--slate)] mb-1">End Time</label>
+                    <input
+                      type="time"
+                      value={newEndTime}
+                      onChange={(e) => setNewEndTime(e.target.value)}
+                      className="w-full text-xs border border-[var(--mist)] rounded-xl px-2 py-1.5 outline-none"
+                    />
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
+                    Slot Duration (Minutes)
+                  </label>
+                  <select
+                    value={newDuration}
+                    onChange={(e) => setNewDuration(Number(e.target.value))}
+                    className="w-full text-xs bg-white border border-[var(--mist)] rounded-xl px-3 py-2 outline-none focus:border-[var(--primary)]"
+                  >
+                    <option value={15}>15 Minutes</option>
+                    <option value={20}>20 Minutes</option>
+                    <option value={30}>30 Minutes</option>
+                    <option value={45}>45 Minutes</option>
+                    <option value={60}>60 Minutes</option>
+                  </select>
+                </div>
+
+                <button type="submit" className="btn btn-primary text-xs py-2 w-full justify-center mt-2">
+                  <Plus size={14} />
+                  <span>Save Weekly Shift</span>
+                </button>
               </form>
             </div>
           </div>

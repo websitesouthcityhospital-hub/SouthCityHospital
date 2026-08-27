@@ -1,28 +1,6 @@
 import type { Appointment, AppointmentStatus } from "@sch/types";
 import { createClient } from "@/lib/supabase/client";
 
-const STORAGE_KEY = "sch_appointments_store";
-
-function getStoredAppointments(): Appointment[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function saveAppointments(appointments: Appointment[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments));
-  } catch (err) {
-    console.error("Failed to persist appointment", err);
-  }
-}
-
 export async function getBookingsForDate(
   dateStr: string,
   doctorId?: string
@@ -65,16 +43,11 @@ export async function getBookingsForDate(
         }));
       }
     } catch (err) {
-      console.warn("Supabase bookings fetch fallback:", err);
+      console.warn("Supabase bookings fetch error:", err);
     }
   }
 
-  const all = getStoredAppointments();
-  return all.filter((a) => {
-    const matchDate = a.preferredDate === dateStr;
-    const matchDoc = !doctorId || doctorId === "all" || a.doctorId === doctorId;
-    return matchDate && matchDoc;
-  });
+  return [];
 }
 
 export async function searchBookingsAdmin(query: string): Promise<{
@@ -93,7 +66,7 @@ export async function searchBookingsAdmin(query: string): Promise<{
         const targetRef = clean.toUpperCase();
         const { data, error } = await supabase
           .from("appointments")
-          .select('*, doctors(name), departments(name)')
+          .select("*, doctors(name), departments(name)")
           .eq("booking_reference", targetRef);
 
         if (!error && data) {
@@ -117,11 +90,11 @@ export async function searchBookingsAdmin(query: string): Promise<{
           return { isPhoneSearch: false, results };
         }
       } else {
-        const queryDigits = clean.replace(/\D/g, "");
+        const cleanDigits = clean.replace(/\D/g, "");
         const { data, error } = await supabase
           .from("appointments")
-          .select('*, doctors(name), departments(name)')
-          .like("patient_phone", `%${queryDigits}%`)
+          .select("*, doctors(name), departments(name)")
+          .ilike("patient_phone", `%${cleanDigits}%`)
           .order("preferred_date", { ascending: false });
 
         if (!error && data) {
@@ -146,27 +119,11 @@ export async function searchBookingsAdmin(query: string): Promise<{
         }
       }
     } catch (err) {
-      console.warn("Supabase search fallback:", err);
+      console.warn("Supabase search error:", err);
     }
   }
 
-  const all = getStoredAppointments();
-
-  if (isReference) {
-    const targetRef = clean.toUpperCase();
-    const found = all.filter((a) => a.bookingReference.toUpperCase() === targetRef);
-    return { isPhoneSearch: false, results: found };
-  } else {
-    const queryDigits = clean.replace(/\D/g, "");
-    const found = all
-      .filter((a) => {
-        const storedDigits = a.patientPhone.replace(/\D/g, "");
-        return storedDigits.endsWith(queryDigits) || queryDigits.endsWith(storedDigits);
-      })
-      .sort((a, b) => new Date(b.preferredDate).getTime() - new Date(a.preferredDate).getTime());
-
-    return { isPhoneSearch: true, results: found };
-  }
+  return { isPhoneSearch: isReference ? false : true, results: [] };
 }
 
 export async function updateBookingStatus(
@@ -178,81 +135,157 @@ export async function updateBookingStatus(
     try {
       const { error } = await supabase
         .from("appointments")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", appointmentId);
-        
+
       if (!error) {
-        // Also update local storage if it exists, to keep in sync for fallback
-        const all = getStoredAppointments();
-        const target = all.find((a) => a.id === appointmentId);
-        if (target) {
-          target.status = newStatus;
-          target.updatedAt = new Date().toISOString();
-          saveAppointments(all);
-        }
         return { success: true };
       }
-      console.warn("Supabase update error:", error);
-    } catch (err) {
-      console.warn("Supabase update fallback:", err);
+      return { success: false, error: error.message };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
   }
 
-  const all = getStoredAppointments();
-  const target = all.find((a) => a.id === appointmentId);
-
-  if (!target) {
-    return { success: false, error: "Appointment not found." };
-  }
-
-  target.status = newStatus;
-  target.updatedAt = new Date().toISOString();
-  saveAppointments(all);
-
-  return { success: true };
+  return { success: false, error: "Database client unavailable" };
 }
 
-export async function getDashboardStats(): Promise<{
+export interface DashboardMetrics {
   totalToday: number;
-  confirmedToday: number;
-  completedToday: number;
-  totalAllTime: number;
-  activeDoctors: number;
-}> {
-  const todayStr = new Date().toISOString().split("T")[0];
+  remainingToday: number;
+  unavailableDoctorsToday: number;
+  patientsTriagedToday: number;
+  todayAppointments: Appointment[];
+  recentRegistrations: Appointment[];
+  forecast7Days: Array<{ dateStr: string; dayLabel: string; count: number }>;
+}
+
+export async function fetchOperationalDashboard(todayStr: string): Promise<DashboardMetrics> {
   const supabase = createClient();
 
-  if (supabase) {
-    try {
-      const [{ data: todayData }, { count: totalAllTime }, { count: activeDoctors }] = await Promise.all([
-        supabase.from("appointments").select("status").eq("preferred_date", todayStr),
-        supabase.from("appointments").select("*", { count: "exact", head: true }),
-        supabase.from("doctors").select("*", { count: "exact", head: true }).eq("active", true),
-      ]);
-
-      if (todayData && totalAllTime !== null && activeDoctors !== null) {
-        const list = todayData as Array<{ status: string }>;
-        return {
-          totalToday: list.length,
-          confirmedToday: list.filter((a) => a.status === "Confirmed").length,
-          completedToday: list.filter((a) => a.status === "Completed").length,
-          totalAllTime,
-          activeDoctors,
-        };
-      }
-    } catch (err) {
-      console.warn("Supabase dashboard stats fallback:", err);
-    }
-  }
-
-  const all = getStoredAppointments();
-  const todayList = all.filter((a) => a.preferredDate === todayStr);
-
-  return {
-    totalToday: todayList.length,
-    confirmedToday: todayList.filter((a) => a.status === "Confirmed").length,
-    completedToday: todayList.filter((a) => a.status === "Completed").length,
-    totalAllTime: all.length,
-    activeDoctors: 6,
+  const emptyResult: DashboardMetrics = {
+    totalToday: 0,
+    remainingToday: 0,
+    unavailableDoctorsToday: 0,
+    patientsTriagedToday: 0,
+    todayAppointments: [],
+    recentRegistrations: [],
+    forecast7Days: Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      return {
+        dateStr: d.toISOString().split("T")[0],
+        dayLabel: d.toLocaleDateString("en-US", { weekday: "short" }),
+        count: 0,
+      };
+    }),
   };
+
+  if (!supabase) return emptyResult;
+
+  try {
+    // 1. Fetch today's appointments
+    const { data: todayData } = await supabase
+      .from("appointments")
+      .select("*, doctors(name), departments(name)")
+      .eq("preferred_date", todayStr)
+      .order("preferred_time_slot", { ascending: true });
+
+    const todayList: Appointment[] = (todayData || []).map((a: any) => ({
+      id: a.id,
+      bookingReference: a.booking_reference,
+      doctorId: a.doctor_id,
+      doctorName: a.doctors?.name || a.doctor_name || "Specialist",
+      departmentSlug: a.department_slug,
+      departmentName: a.departments?.name || a.department_name || "Department",
+      patientName: a.patient_name,
+      patientPhone: a.patient_phone,
+      patientDob: a.patient_dob,
+      preferredDate: a.preferred_date,
+      preferredTimeSlot: a.preferred_time_slot,
+      message: a.message,
+      status: a.status,
+      createdAt: a.created_at,
+      updatedAt: a.updated_at,
+    }));
+
+    // 2. Fetch doctors unavailable today
+    const { data: exceptionsData } = await supabase
+      .from("doctor_exceptions")
+      .select("*")
+      .eq("date", todayStr)
+      .eq("type", "full_day_unavailable");
+
+    const unavailableDoctorsCount = exceptionsData?.length || 0;
+
+    // 3. Fetch recent appointments
+    const { data: recentData } = await supabase
+      .from("appointments")
+      .select("*, doctors(name), departments(name)")
+      .order("created_at", { ascending: false })
+      .limit(6);
+
+    const recentList: Appointment[] = (recentData || []).map((a: any) => ({
+      id: a.id,
+      bookingReference: a.booking_reference,
+      doctorId: a.doctor_id,
+      doctorName: a.doctors?.name || a.doctor_name || "Specialist",
+      departmentSlug: a.department_slug,
+      departmentName: a.departments?.name || a.department_name || "Department",
+      patientName: a.patient_name,
+      patientPhone: a.patient_phone,
+      patientDob: a.patient_dob,
+      preferredDate: a.preferred_date,
+      preferredTimeSlot: a.preferred_time_slot,
+      message: a.message,
+      status: a.status,
+      createdAt: a.created_at,
+      updatedAt: a.updated_at,
+    }));
+
+    // 4. Fetch 7-day forecast
+    const d0 = new Date();
+    const dEnd = new Date();
+    dEnd.setDate(dEnd.getDate() + 7);
+
+    const { data: forecastData } = await supabase
+      .from("appointments")
+      .select("preferred_date")
+      .gte("preferred_date", d0.toISOString().split("T")[0])
+      .lte("preferred_date", dEnd.toISOString().split("T")[0]);
+
+    const forecast7Days = Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().split("T")[0];
+      const count = (forecastData || []).filter((row: any) => row.preferred_date === dateStr).length;
+      return {
+        dateStr,
+        dayLabel: d.toLocaleDateString("en-US", { weekday: "short" }),
+        count,
+      };
+    });
+
+    const totalToday = todayList.length;
+    const remainingToday = todayList.filter(
+      (a) => a.status !== "Completed" && a.status !== "Cancelled"
+    ).length;
+    const patientsTriagedToday = new Set(todayList.map((a) => a.patientPhone.replace(/\D/g, ""))).size;
+
+    return {
+      totalToday,
+      remainingToday,
+      unavailableDoctorsToday: unavailableDoctorsCount,
+      patientsTriagedToday,
+      todayAppointments: todayList,
+      recentRegistrations: recentList,
+      forecast7Days,
+    };
+  } catch (err) {
+    console.warn("Supabase dashboard metrics error:", err);
+    return emptyResult;
+  }
 }

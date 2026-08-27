@@ -16,7 +16,7 @@ import {
 import { AdminLayout } from "@/components/AdminLayout";
 import { useDoctors, saveDoctor, deleteDoctor, clearAllDoctors } from "@/services/doctors";
 import { uploadDoctorAvatar } from "@/services/storage";
-import { departments } from "@/data/departments";
+import { useDepartments } from "@/services/departments";
 import type { Doctor, UserRole } from "@sch/types";
 
 function getDoctorInitials(name: string): string {
@@ -31,6 +31,7 @@ function getDoctorInitials(name: string): string {
 export default function AdminDoctorsPage() {
   const [currentRole, setCurrentRole] = useState<UserRole>("admin");
   const { data: initialDoctors, isLoading, refresh } = useDoctors({ activeOnly: false });
+  const { departments } = useDepartments();
   const [doctorsList, setDoctorsList] = useState<Doctor[]>([]);
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
   const [deletingDoctor, setDeletingDoctor] = useState<Doctor | null>(null);

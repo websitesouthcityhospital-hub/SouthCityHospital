@@ -13,7 +13,7 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { BookingSearchBar } from "@/components/BookingSearchBar";
 import { getBookingsForDate, updateBookingStatus } from "@/services/admin-bookings";
 import { useDoctors } from "@/services/doctors";
-import { departments } from "@/data/departments";
+import { useDepartments } from "@/services/departments";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { exportSingleDoctorBookingsXlsx, exportAllDoctorsGroupedXlsx } from "@/lib/excel-export";
 import type { Appointment, AppointmentStatus, UserRole } from "@sch/types";
@@ -31,6 +31,7 @@ export default function BookingsHubPage() {
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
 
   const { data: doctors } = useDoctors({ activeOnly: false });
+  const { departments } = useDepartments();
 
   useEffect(() => {
     fetch("/api/auth/me")
