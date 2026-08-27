@@ -70,6 +70,7 @@ export interface Doctor {
   active: boolean;
   biography?: string | null;
   languages?: string[];
+  registrationNumber: string;
   weeklySchedules?: DoctorWeeklySchedule[];
 }
 

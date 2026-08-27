@@ -6,10 +6,12 @@ import { z } from "zod";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Phone, Mail, MapPin, Clock, Globe,
+  Phone, Mail, MapPin, Clock,
   Send, CheckCircle2, User, MessageSquare,
 } from "lucide-react";
+import { InstagramIcon, FacebookIcon } from "@/components/icons/SocialIcons";
 import { hospital } from "@/data/hospital";
+import { submitContactQuery } from "@/services/contact";
 import { ScrollReveal, Floating } from "@/components/ui/motion";
 import { FloatingBlobs, DotGrid, PulseLineWatermark } from "@/components/ui/svg-patterns";
 import { cn } from "@/lib/utils";
@@ -25,15 +27,21 @@ type ContactFormData = z.infer<typeof contactSchema>;
 
 function ContactForm() {
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ContactFormData>({ resolver: zodResolver(contactSchema) });
 
-  const onSubmit = async (_data: ContactFormData) => {
-    await new Promise((r) => setTimeout(r, 1000));
-    setSubmitted(true);
+  const onSubmit = async (data: ContactFormData) => {
+    try {
+      setError(null);
+      await submitContactQuery(data);
+      setSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong.");
+    }
   };
 
   return (
@@ -41,6 +49,11 @@ function ContactForm() {
       <h2 className="font-display font-semibold text-2xl mb-6" style={{ color: "var(--blue-950)" }}>
         Send us a message
       </h2>
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-[var(--emergency)]/10 border border-[var(--emergency)]/20 text-[var(--emergency)] text-sm">
+          {error}
+        </div>
+      )}
       <AnimatePresence mode="wait">
         {submitted ? (
           <motion.div key="success" className="flex flex-col items-center text-center gap-4 py-6"
@@ -201,18 +214,7 @@ export function ContactClient() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <a href={hospital.social.instagram} target="_blank" rel="noopener noreferrer" aria-label="Website"
-                  className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg border border-[var(--mist)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
-                  style={{ color: "var(--slate)" }}>
-                  <Globe size={16} aria-hidden="true" /> {hospital.social.instagramHandle}
-                </a>
-                <a href={hospital.social.facebook} target="_blank" rel="noopener noreferrer" aria-label="Portal"
-                  className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg border border-[var(--mist)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
-                  style={{ color: "var(--slate)" }}>
-                  <Globe size={16} aria-hidden="true" /> Portal
-                </a>
-              </div>
+
             </ScrollReveal>
 
             <ScrollReveal delay={0.15}>

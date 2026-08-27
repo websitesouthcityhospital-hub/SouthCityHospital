@@ -190,7 +190,7 @@ export function Navbar() {
           {/* Mobile Hamburger (Strictly hidden on desktop, visible on mobile) */}
           <button
             ref={hamburgerRef}
-            className="flex lg:hidden items-center justify-center p-2 rounded-lg text-[var(--slate)] hover:text-[var(--ink)] hover:bg-[var(--cloud)] transition-colors shrink-0 -mr-1 cursor-pointer"
+            className="flex lg:hidden items-center justify-center p-2 rounded-lg text-[var(--slate)] hover:text-[var(--ink)] hover:bg-[var(--cloud)] transition-all hover:scale-105 active:scale-95 shrink-0 -mr-1 cursor-pointer"
             onClick={() => setMobileOpen((v) => !v)}
             aria-expanded={mobileOpen}
             aria-controls="mobile-menu"

@@ -8,7 +8,9 @@ import {
   Heart,
   Globe,
 } from "lucide-react";
+import { InstagramIcon, FacebookIcon } from "@/components/icons/SocialIcons";
 import { hospital } from "@/data/hospital";
+import { ScrollReveal } from "@/components/ui/motion";
 
 const QUICK_LINKS = [
   { href: "/about", label: "About Us" },
@@ -48,7 +50,8 @@ export function Footer() {
       </div>
 
       {/* ── Main Footer Content ── */}
-      <div className="container-site py-14 grid gap-10 md:grid-cols-2 lg:grid-cols-4">
+      <ScrollReveal className="container-site py-14 relative z-10">
+        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4 mb-8">
         {/* Hospital Info */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center gap-3">
@@ -212,6 +215,7 @@ export function Footer() {
           </div>
         </div>
       </div>
+      </ScrollReveal>
 
       {/* ── Bottom Bar ── */}
       <div

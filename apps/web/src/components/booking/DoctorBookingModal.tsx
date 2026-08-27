@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   X,
   User,
@@ -19,7 +20,7 @@ import Image from "next/image";
 import type { Doctor, Appointment, BookableSlot } from "@sch/types";
 import { departments } from "@/data/departments";
 import { createBooking } from "@/services/appointments";
-import { fetchDoctorAvailableSlots } from "@/services/slots";
+import { fetchDoctorAvailabilityRange } from "@/services/slots";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { analytics } from "@/lib/analytics";
 
@@ -60,13 +61,13 @@ export function DoctorBookingModal({
 }: DoctorBookingModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isFetchingSlots, setIsFetchingSlots] = useState(false);
   const [slotsState, setSlotsState] = useState<{
-    slots: BookableSlot[];
     isFullyUnavailable: boolean;
     reason?: string;
-  }>({ slots: [], isFullyUnavailable: false });
+    start_time?: string;
+    end_time?: string;
+  }>({ isFullyUnavailable: false });
   const [serverError, setServerError] = useState<string | null>(null);
 
   const dept = doctor ? departments.find((d) => d.slug === doctor.departmentSlug) : null;
@@ -130,11 +131,10 @@ export function DoctorBookingModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Compute live slots using Single Postgres RPC Engine / local fallback
+  // Compute live availability using Single Postgres RPC Engine / local fallback
   useEffect(() => {
     if (!doctor || !selectedDate) {
-      setSlotsState({ slots: [], isFullyUnavailable: false });
-      setSelectedSlot(null);
+      setSlotsState({ isFullyUnavailable: false });
       setIsFetchingSlots(false);
       return;
     }
@@ -142,16 +142,15 @@ export function DoctorBookingModal({
     let isMounted = true;
     setIsFetchingSlots(true);
 
-    fetchDoctorAvailableSlots(doctor.id, selectedDate)
+    fetchDoctorAvailabilityRange(doctor.id, selectedDate)
       .then((res) => {
         if (!isMounted) return;
-        setSlotsState(res);
-        const firstAvail = res.slots.find((s) => s.isAvailable);
-        if (firstAvail) {
-          setSelectedSlot(firstAvail.label);
-        } else {
-          setSelectedSlot(null);
-        }
+        setSlotsState({
+          isFullyUnavailable: !res.available,
+          reason: res.reason || undefined,
+          start_time: res.start_time || undefined,
+          end_time: res.end_time || undefined,
+        });
       })
       .finally(() => {
         if (isMounted) setIsFetchingSlots(false);
@@ -166,9 +165,8 @@ export function DoctorBookingModal({
   useEffect(() => {
     if (!isOpen) {
       reset({ preferredDate: todayStr });
-      setSlotsState({ slots: [], isFullyUnavailable: false });
+      setSlotsState({ isFullyUnavailable: false });
       setServerError(null);
-      setSelectedSlot(null);
       setIsFetchingSlots(false);
     }
   }, [isOpen, reset, todayStr]);
@@ -178,17 +176,16 @@ export function DoctorBookingModal({
   const onSubmit = async (data: BookingFormData) => {
     setServerError(null);
 
-    if (slotsState.isFullyUnavailable || slotsState.slots.length === 0) {
+    if (slotsState.isFullyUnavailable) {
       setServerError("Doctor is unavailable on this date. Please select another date.");
       return;
     }
 
-    if (!selectedSlot) {
-      setServerError("Please select an available consultation time slot.");
-      return;
-    }
-
     analytics.bookingSubmit(doctor.id, doctor.departmentSlug);
+
+    const windowString = slotsState.start_time && slotsState.end_time
+      ? `${slotsState.start_time} - ${slotsState.end_time}`
+      : undefined;
 
     const response = await createBooking({
       doctorId: doctor.id,
@@ -199,7 +196,7 @@ export function DoctorBookingModal({
       patientPhone: data.phone,
       patientDob: data.dob,
       preferredDate: data.preferredDate,
-      preferredTimeSlot: selectedSlot,
+      preferredTimeSlot: windowString,
       message: data.message,
     });
 
@@ -218,28 +215,38 @@ export function DoctorBookingModal({
   };
 
   const modalNode = (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 md:p-6"
-      style={{ isolation: "isolate" }}
-    >
-      {/* Fixed Fullscreen Backdrop */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 bg-[#071b3d]/80 backdrop-blur-xs transition-opacity"
-        aria-hidden="true"
-      />
+    <AnimatePresence>
+      {isOpen && doctor && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 md:p-6"
+          style={{ isolation: "isolate" }}
+        >
+          {/* Fixed Fullscreen Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-[#071b3d]/80 backdrop-blur-xs"
+            aria-hidden="true"
+          />
 
-      {/* Modal Dialog Card (Strict Viewport Containment) */}
-      <div
-        ref={modalRef}
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg lg:max-w-xl max-h-[92vh] sm:max-h-[85vh] bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-[var(--mist)] flex flex-col text-left z-10"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-doctor-name"
-      >
+          {/* Modal Dialog Card (Strict Viewport Containment) */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: 8 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            ref={modalRef}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg lg:max-w-xl max-h-[92vh] sm:max-h-[85vh] bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-[var(--mist)] flex flex-col text-left z-10"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-doctor-name"
+          >
         {/* 1. Sticky / Fixed Header */}
-        <div className="bg-white z-20 border-b border-[var(--mist)] px-4 py-2.5 sm:px-6 sm:py-4 flex items-center justify-between shrink-0 shadow-2xs">
+        <div className="bg-white z-20 border-b border-[var(--mist)] px-3 py-2 sm:px-6 sm:py-4 flex items-center justify-between shrink-0 shadow-2xs">
           <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
             {doctor.photoUrl ? (
               <div className="relative w-10 h-10 sm:w-13 sm:h-13 rounded-xl overflow-hidden shrink-0 border border-[var(--mist)] bg-[var(--cloud)]">
@@ -252,7 +259,7 @@ export function DoctorBookingModal({
                 />
               </div>
             ) : (
-              <div className="w-10 h-10 sm:w-13 sm:h-13 rounded-xl bg-[var(--sky-100)] flex items-center justify-center shrink-0 border border-[var(--mist)] text-[var(--primary)]">
+              <div className="w-10 h-10 sm:w-13 sm:h-13 rounded-xl bg-[var(--cloud)] flex items-center justify-center shrink-0 border border-[var(--mist)] text-[var(--primary)]">
                 <Stethoscope size={18} />
               </div>
             )}
@@ -403,56 +410,28 @@ export function DoctorBookingModal({
                   </div>
                 </div>
               )}
+
+              {/* Live Consultation Hours for Selected Date */}
+              {selectedDate && !slotsState.isFullyUnavailable && !isFetchingSlots && slotsState.start_time && slotsState.end_time && (
+                <div className="mt-3 p-3 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-sky-600 uppercase tracking-wide">Expected Consultation Time</p>
+                    <p className="text-sm font-semibold text-sky-900 mt-0.5">
+                      {slotsState.start_time} - {slotsState.end_time}
+                    </p>
+                    {slotsState.reason && (
+                      <p className="text-[11px] text-amber-700 mt-1.5 italic font-medium bg-amber-50 p-1.5 rounded border border-amber-100">
+                        Note: {slotsState.reason}
+                      </p>
+                    )}
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-xs">
+                    <CalendarCheck size={14} className="text-sky-600" />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Dynamic Consultation Slots */}
-            {selectedDate && !slotsState.isFullyUnavailable && (
-              <div>
-                <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1.5">
-                  Available Consultation Slots ({formatDisplayDate(selectedDate)}) <span className="text-red-500">*</span>
-                </label>
-
-                {isFetchingSlots ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1 border border-[var(--mist)]/60 rounded-xl bg-[var(--cloud)]/50">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                      <div
-                        key={i}
-                        className="h-10 rounded-xl bg-white border border-[var(--mist)] flex flex-col items-center justify-center gap-1 animate-pulse"
-                      >
-                        <div className="h-2.5 w-16 bg-gray-200 rounded" />
-                      </div>
-                    ))}
-                  </div>
-                ) : slotsState.slots.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1.5 border border-[var(--mist)]/60 rounded-xl bg-[var(--cloud)]/50">
-                    {slotsState.slots.map((slot) => {
-                      const isSelected = selectedSlot === slot.label;
-                      return (
-                        <button
-                          key={slot.startTime}
-                          type="button"
-                          disabled={!slot.isAvailable}
-                          onClick={() => {
-                            setSelectedSlot(slot.label);
-                            setServerError(null);
-                          }}
-                          className={`p-2 sm:p-2.5 rounded-xl text-xs font-medium text-center border transition-all flex flex-col items-center justify-center ${
-                            isSelected
-                              ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-xs"
-                              : slot.isAvailable
-                              ? "bg-white border-[var(--mist)] text-[var(--navy-950)] hover:border-[var(--primary)]/60 hover:bg-white shadow-2xs"
-                              : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
-                          }`}
-                        >
-                          <span className="font-semibold">{slot.label}</span>
-                          {!slot.isAvailable && <span className="text-[9px] text-red-500 font-bold mt-0.5">Taken / Passed</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            )}
 
             {/* Optional Symptoms / Message */}
             <div>
@@ -476,7 +455,7 @@ export function DoctorBookingModal({
             )}
 
             {/* No Payment Notice */}
-            <div className="p-2 sm:p-2.5 rounded-xl bg-[var(--sky-100)] text-[11px] sm:text-xs text-[var(--blue-900)] flex items-center gap-2">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-[var(--cloud)] text-[11px] sm:text-xs text-[var(--blue-900)] flex items-center gap-2">
               <CheckCircle2 size={14} className="text-[var(--primary)] shrink-0" />
               <span>
                 <strong>No advance payment required.</strong> Consultation fee is payable at hospital reception.
@@ -503,9 +482,13 @@ export function DoctorBookingModal({
             </button>
           </div>
         </form>
-      </div>
+      </motion.div>
     </div>
-  );
+  )}
+</AnimatePresence>
+);
 
-  return createPortal(modalNode, document.body);
+if (!mounted) return null;
+
+return createPortal(modalNode, document.body);
 }

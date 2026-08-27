@@ -1,75 +1,79 @@
 /**
- * Shared Doctor Availability Slot Service
- * Calls Supabase get_doctor_available_slots RPC directly.
+ * Shared Doctor Availability Slot Service for Web Portal
+ * Calls Supabase get_doctor_availability_range RPC directly.
  */
 
 import { createClient } from "@/lib/supabase/client";
-import type { BookableSlot } from "@sch/types";
 
-export interface SlotAvailabilityResponse {
-  success: boolean;
-  slots: BookableSlot[];
-  isFullyUnavailable: boolean;
-  reason?: string;
+export interface AvailabilityRangeResponse {
+  available: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  reason: string | null;
   error?: string;
 }
 
-export async function fetchDoctorAvailableSlots(
+export async function fetchDoctorAvailabilityRange(
   doctorId: string,
   targetDate: string
-): Promise<SlotAvailabilityResponse> {
+): Promise<AvailabilityRangeResponse> {
   const supabase = createClient();
 
   if (supabase) {
     try {
-      const { data, error } = await supabase.rpc("get_doctor_available_slots", {
+      const { data, error } = await supabase.rpc("get_doctor_availability_range", {
         p_doctor_id: doctorId,
         p_target_date: targetDate,
       });
 
-      if (!error && data && data.success) {
-        const rawSlots = data.slots || [];
-        const isFullyUnavailable = rawSlots.length === 0 && !!data.reason;
-
-        const mapped: BookableSlot[] = rawSlots.map((s: any) => ({
-          startTime: s.time,
-          endTime: s.time,
-          label: s.label || s.time,
-          isAvailable: s.available !== false,
-        }));
-
+      if (!error && data) {
         return {
-          success: true,
-          slots: mapped,
-          isFullyUnavailable,
+          available: data.available,
+          start_time: data.start_time,
+          end_time: data.end_time,
           reason: data.reason,
         };
-      } else if (error) {
-        console.warn("Supabase get_doctor_available_slots error, using local OPD slots:", error.message);
       }
     } catch (err) {
-      console.warn("Error calling get_doctor_available_slots RPC:", err);
+      console.warn("Error calling get_doctor_availability_range in web:", err);
     }
   }
 
-  // Standard hospital OPD default window fallback if not connected to live remote Supabase
-  const slots: BookableSlot[] = [
-    { startTime: "09:00", endTime: "09:30", label: "09:00 AM – 09:30 AM", isAvailable: true },
-    { startTime: "09:30", endTime: "10:00", label: "09:30 AM – 10:00 AM", isAvailable: true },
-    { startTime: "10:00", endTime: "10:30", label: "10:00 AM – 10:30 AM", isAvailable: true },
-    { startTime: "10:30", endTime: "11:00", label: "10:30 AM – 11:00 AM", isAvailable: true },
-    { startTime: "11:00", endTime: "11:30", label: "11:00 AM – 11:30 AM", isAvailable: true },
-    { startTime: "11:30", endTime: "12:00", label: "11:30 AM – 12:00 PM", isAvailable: true },
-    { startTime: "12:00", endTime: "12:30", label: "12:00 PM – 12:30 PM", isAvailable: true },
-    { startTime: "14:00", endTime: "14:30", label: "02:00 PM – 02:30 PM", isAvailable: true },
-    { startTime: "14:30", endTime: "15:00", label: "02:30 PM – 03:00 PM", isAvailable: true },
-    { startTime: "15:00", endTime: "15:30", label: "03:00 PM – 03:30 PM", isAvailable: true },
-    { startTime: "15:30", endTime: "16:00", label: "03:30 PM – 04:00 PM", isAvailable: true },
-  ];
-
+  // Fallback default
   return {
-    success: true,
-    slots,
-    isFullyUnavailable: false,
+    available: true,
+    start_time: "09:00 AM",
+    end_time: "05:00 PM",
+    reason: null,
   };
+}
+
+export interface WeeklyScheduleItem {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+}
+
+export async function fetchDoctorWeeklySchedules(doctorId: string): Promise<WeeklyScheduleItem[]> {
+  const supabase = createClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("doctor_weekly_schedules")
+        .select("day_of_week, start_time, end_time")
+        .eq("doctor_id", doctorId)
+        .eq("is_active", true);
+
+      if (!error && data) {
+        return data.map((d: any) => ({
+          dayOfWeek: d.day_of_week,
+          startTime: d.start_time,
+          endTime: d.end_time,
+        }));
+      }
+    } catch (err) {
+      console.warn("Failed to fetch doctor weekly schedules", err);
+    }
+  }
+  return [];
 }

@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 import type { UserRole } from "@sch/types";
 
@@ -104,6 +105,11 @@ export function AdminLayout({
           },
         ]
       : []),
+    {
+      href: "/queries",
+      label: "Contact Queries",
+      icon: MessageSquare,
+    },
   ];
 
   return (

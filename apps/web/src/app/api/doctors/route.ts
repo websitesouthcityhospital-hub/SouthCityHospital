@@ -55,6 +55,7 @@ export async function GET(request: Request) {
           consultationSchedule: d.consultation_schedule || [],
           biography: d.biography || null,
           languages: d.languages || ["English", "Bengali", "Hindi"],
+          registrationNumber: d.registration_number || "PENDING",
         }));
         return NextResponse.json({ success: true, doctors: mapped });
       }

@@ -22,7 +22,7 @@
 2. **Orthopaedics & Trauma:** Joint replacement, fracture trauma reduction, and musculoskeletal surgery.
 3. **Neuro Surgery:** Specialized surgical interventions for cranial, neurological, and spinal disorders.
 4. **Cardiology:** Advanced cardiac diagnostics, Echocardiography, Holter monitoring, and emergency CCU stabilization.
-5. **Gynaecology & Obstetrics:** Antenatal care, high-risk pregnancy management, and fertility healthcare.
+5. **Gynecology and Obst:** Antenatal care, high-risk pregnancy management, and fertility healthcare.
 6. **Paediatrics & Neonatology:** Child healthcare, vaccination schedules, and newborn critical care.
 7. **Nephrology:** Kidney diseases, renal function management, and regular hemodialysis support.
 8. **Urology & Andrology:** Kidney stone removal, prostate treatment, and reconstructive urological surgery.

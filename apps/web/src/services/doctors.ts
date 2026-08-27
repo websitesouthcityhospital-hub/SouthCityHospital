@@ -38,6 +38,7 @@ async function fetchDoctors(params: DoctorFilterParams = {}): Promise<Doctor[]> 
           active: d.active ?? true,
           biography: d.biography || null,
           languages: d.languages || ["English", "Bengali", "Hindi"],
+          registrationNumber: d.registration_number || "PENDING",
         }));
       }
     } catch (err) {

@@ -84,12 +84,14 @@ CREATE TABLE IF NOT EXISTS doctors (
   active BOOLEAN NOT NULL DEFAULT true,
   biography TEXT NULL,
   languages TEXT[] NOT NULL DEFAULT '{"English", "Bengali", "Hindi"}',
+  registration_number TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- In case table already existed without languages column:
 ALTER TABLE doctors ADD COLUMN IF NOT EXISTS languages TEXT[] NOT NULL DEFAULT '{"English", "Bengali", "Hindi"}';
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS registration_number TEXT NOT NULL DEFAULT 'PENDING';
 
 DROP TRIGGER IF EXISTS trigger_doctors_updated_at ON doctors;
 CREATE TRIGGER trigger_doctors_updated_at
@@ -253,6 +255,7 @@ DROP POLICY IF EXISTS "Allow staff authentication and management" ON staff_accou
 CREATE POLICY "Allow staff authentication and management" ON staff_accounts FOR ALL USING (true) WITH CHECK (true);
 
 -- 13. RPC: GET_DOCTOR_AVAILABLE_SLOTS (Central Availability Engine)
+-- DEPRECATED: Phase out in favor of get_doctor_availability_range
 CREATE OR REPLACE FUNCTION get_doctor_available_slots(
   p_doctor_id TEXT,
   p_target_date DATE
@@ -420,17 +423,14 @@ BEGIN
     SET full_name = EXCLUDED.full_name, updated_at = now()
   RETURNING id INTO v_patient_id;
 
-  -- Duplicate active slot collision guard
-  IF p_preferred_time_slot IS NOT NULL AND p_preferred_time_slot <> '' THEN
-    IF EXISTS (
-      SELECT 1 FROM appointments
-      WHERE doctor_id = p_doctor_id
-        AND preferred_date = p_preferred_date
-        AND preferred_time_slot = p_preferred_time_slot
-        AND status NOT IN ('Cancelled')
-    ) THEN
-      RETURN jsonb_build_object('success', false, 'error', 'This appointment slot was just booked by another patient. Please select a different time slot.');
-    END IF;
+  -- Maximum daily appointment capacity guard (30 appointments per day)
+  IF (
+    SELECT COUNT(*) FROM appointments
+    WHERE doctor_id = p_doctor_id
+      AND preferred_date = p_preferred_date
+      AND status NOT IN ('Cancelled')
+  ) >= 30 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'This doctor has reached the maximum number of appointments for this date.');
   END IF;
 
   -- Generate atomic reference: SCH-YYYY-XXXXX
@@ -692,8 +692,7 @@ INSERT INTO departments (slug, name, description, icon) VALUES
 ('internal-medicine', 'Internal Medicine', 'Comprehensive primary care, chronic disease management, and adult health diagnostics.', 'Stethoscope'),
 ('orthopaedic-surgery', 'Orthopaedic Surgery', 'Advanced bone, joint, and trauma care, fracture management, and joint replacements.', 'Bone'),
 ('orthopaedics', 'Orthopaedics', 'Advanced bone, joint, and musculoskeletal trauma care and surgical interventions.', 'Bone'),
-('gynaecology-obstetrics', 'Gynaecology & Obstetrics', 'Comprehensive women''s healthcare, maternity services, and advanced laparoscopic surgery.', 'HeartPulse'),
-('gynaecology', 'Gynaecology', 'Women''s healthcare, maternity services, and reproductive health care.', 'Baby'),
+('gynecology-and-obst', 'Gynecology and Obst', 'Women''s healthcare, maternity services, and reproductive health care.', 'Baby'),
 ('cardiology', 'Cardiology', 'Heart health diagnostics, Holter monitoring, Color Doppler ECG, and critical cardiac care.', 'HeartPulse'),
 ('general-laparoscopic-surgery', 'General & Laparoscopic Surgery', 'Minimally invasive keyhole and general surgical procedures with rapid recovery protocols.', 'Scissors'),
 ('general-surgery', 'General Surgery', 'Full spectrum open and emergency abdominal surgical procedures.', 'Scissors'),
@@ -762,7 +761,8 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_auth_user();
 
--- 18. SUPABASE STORAGE BUCKETS (DOCTOR AVATARS & GALLERY IMAGES - 50MB LIMIT)
+-- 20. SUPABASE STORAGE BUCKETS (DOCTOR AVATARS & GALLERY IMAGES - 50MB LIMIT)
+-- ... existing storage buckets logic ... (I should not wipe it out, I must preserve lines 765 to 811)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES 
   (
@@ -808,3 +808,130 @@ CREATE POLICY "Update Gallery Images" ON storage.objects FOR UPDATE USING (bucke
 
 DROP POLICY IF EXISTS "Delete Gallery Images" ON storage.objects;
 CREATE POLICY "Delete Gallery Images" ON storage.objects FOR DELETE USING (bucket_id = 'gallery-images');
+CREATE OR REPLACE FUNCTION get_doctor_availability_range(
+  p_doctor_id TEXT,
+  p_target_date DATE
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $
+DECLARE
+  v_day_name TEXT;
+  v_exception RECORD;
+  v_sched RECORD;
+  v_start_time TIME;
+  v_end_time TIME;
+  v_reason TEXT := NULL;
+  v_now TIMESTAMP := CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata';
+  v_target_date_ist DATE := (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE;
+  v_appointment_count INT;
+BEGIN
+  -- Target date validation
+  IF p_target_date < v_target_date_ist THEN
+    RETURN jsonb_build_object(
+      'available', false,
+      'reason', 'This date is in the past.'
+    );
+  END IF;
+
+  -- 1. Check exceptions
+  SELECT * INTO v_exception
+  FROM doctor_exceptions
+  WHERE doctor_id = p_doctor_id AND date = p_target_date;
+
+  IF FOUND THEN
+    IF v_exception.type = 'full_day_unavailable' THEN
+      RETURN jsonb_build_object(
+        'available', false,
+        'reason', COALESCE(v_exception.reason, 'Doctor is unavailable on this date.')
+      );
+    ELSIF v_exception.type = 'custom_hours' AND v_exception.start_time IS NOT NULL AND v_exception.end_time IS NOT NULL THEN
+      v_start_time := v_exception.start_time::TIME;
+      v_end_time := v_exception.end_time::TIME;
+    END IF;
+  END IF;
+
+  -- 2. Lookup weekly schedule if no custom hours
+  IF v_start_time IS NULL THEN
+    v_day_name := TRIM(TO_CHAR(p_target_date, 'Day'));
+    
+    SELECT * INTO v_sched
+    FROM doctor_weekly_schedules
+    WHERE doctor_id = p_doctor_id
+      AND is_active = true
+      AND (
+        day_of_week ILIKE '%' || v_day_name || '%'
+        OR day_of_week ILIKE '%' || SUBSTRING(v_day_name FROM 1 FOR 3) || '%'
+      )
+    LIMIT 1;
+
+    IF FOUND THEN
+      v_start_time := v_sched.start_time::TIME;
+      v_end_time := v_sched.end_time::TIME;
+    ELSE
+      -- No schedule configured
+      RETURN jsonb_build_object(
+        'available', false,
+        'reason', 'No schedule configured for this day.'
+      );
+    END IF;
+  END IF;
+
+  -- 3. Check partial unavailable for display reason
+  IF v_exception IS NOT NULL AND v_exception.type = 'partial_unavailable' AND v_exception.start_time IS NOT NULL AND v_exception.end_time IS NOT NULL THEN
+    v_reason := 'Break: ' || TO_CHAR(v_exception.start_time::TIME, 'HH12:MI AM') || ' - ' || TO_CHAR(v_exception.end_time::TIME, 'HH12:MI AM');
+    IF v_exception.reason IS NOT NULL AND TRIM(v_exception.reason) <> '' THEN
+      v_reason := v_reason || ' (' || v_exception.reason || ')';
+    END IF;
+  END IF;
+
+  -- 4. Past time check for same day
+  IF p_target_date = v_target_date_ist AND v_end_time <= (v_now::TIME) THEN
+    RETURN jsonb_build_object(
+      'available', false,
+      'reason', 'Consultation hours have already ended for today.'
+    );
+  END IF;
+
+  -- 5. Check if daily capacity (30) is reached
+  SELECT COUNT(*) INTO v_appointment_count 
+  FROM appointments 
+  WHERE doctor_id = p_doctor_id 
+    AND preferred_date = p_target_date 
+    AND status NOT IN ('Cancelled');
+    
+  IF v_appointment_count >= 30 THEN
+    RETURN jsonb_build_object(
+      'available', false,
+      'reason', 'Doctor is fully booked for this date.'
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'available', true,
+    'start_time', TO_CHAR(v_start_time, 'HH12:MI AM'),
+    'end_time', TO_CHAR(v_end_time, 'HH12:MI AM'),
+    'reason', v_reason
+  );
+END;
+$;
+
+
+
+
+-- Phase 2: Contact Queries Table
+
+CREATE TABLE IF NOT EXISTS contact_queries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    email TEXT,
+    message TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'in_progress', 'resolved')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE contact_queries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public inserts" ON contact_queries FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access" ON contact_queries FOR ALL USING (true) WITH CHECK (true);

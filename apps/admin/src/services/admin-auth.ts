@@ -5,6 +5,7 @@ import type {
   UserRole,
 } from "@sch/types";
 import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/server";
 
 const LOCAL_STAFF_STORAGE_KEY = "sch_staff_accounts_store";
 
@@ -162,43 +163,8 @@ export async function authenticateAdminUser(
     } catch (rpcErr) {
       console.warn("Supabase RPC verify_staff_credentials fallback:", rpcErr);
     }
-
-    // 3. Tertiary: Direct Supabase database table query
-    try {
-      const { data: directData, error: directError } = await supabase
-        .from("staff_accounts")
-        .select("*")
-        .eq("email", cleanEmail)
-        .maybeSingle();
-
-      if (!directError && directData) {
-        if (!directData.is_active) {
-          return {
-            success: false,
-            error: "This staff account has been deactivated. Please contact an administrator.",
-          };
-        }
-
-        if (directData.password_hash === cleanPass) {
-          await supabase
-            .from("staff_accounts")
-            .update({ last_login_at: new Date().toISOString() })
-            .eq("id", directData.id);
-
-          const session: AuthSession = {
-            id: directData.id,
-            email: directData.email,
-            fullName: directData.full_name,
-            role: directData.role as UserRole,
-            expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-          };
-          return { success: true, session };
-        }
-      }
-    } catch (directErr) {
-      console.warn("Supabase staff_accounts direct query error:", directErr);
-    }
   }
+    // Tertiary plaintext comparison was removed here for security reasons.
 
   // 4. Local storage fallback if Supabase is offline
   const localAccounts = getStoredStaffAccounts();
@@ -271,52 +237,50 @@ export async function createStaffAccount(
 
   const supabase = createClient();
   if (supabase) {
-    // 1. Try RPC create_staff_account
     try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc("create_staff_account", {
-        p_email: cleanEmail,
-        p_password: cleanPass,
-        p_full_name: cleanName,
-        p_role: input.role,
-        p_created_by: createdByAdminId || null,
-      });
-
-      if (!rpcError && rpcData) {
-        if (rpcData.success && rpcData.account) {
-          return { success: true, account: mapDbAccountToStaffAccount(rpcData.account) };
-        } else if (rpcData.error) {
-          return { success: false, error: rpcData.error };
-        }
-      }
-    } catch (rpcErr) {
-      console.warn("Supabase create_staff_account RPC fallback:", rpcErr);
-    }
-
-    // 2. Direct insert into staff_accounts
-    try {
-      const { data, error } = await supabase
-        .from("staff_accounts")
-        .insert({
+      const adminClient = createAdminClient();
+      if (adminClient) {
+        const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
           email: cleanEmail,
-          full_name: cleanName,
-          role: input.role,
-          password_hash: cleanPass,
-          is_active: true,
-          created_by: createdByAdminId || null,
-        })
-        .select()
-        .single();
+          password: cleanPass,
+          email_confirm: true,
+          user_metadata: { full_name: cleanName, role: input.role }
+        });
 
-      if (!error && data) {
-        return { success: true, account: mapDbAccountToStaffAccount(data) };
-      } else if (error) {
-        if (error.code === "23505" || error.message.includes("unique")) {
-          return { success: false, error: "An account with this email address already exists." };
+        if (authError) {
+          if (authError.message.includes("already exists")) {
+            return { success: false, error: "An account with this email address already exists." };
+          }
+          return { success: false, error: authError.message };
         }
-        return { success: false, error: error.message };
+
+        const authUserId = authData.user.id;
+
+        const { data, error } = await adminClient
+          .from("staff_accounts")
+          .insert({
+            id: authUserId,
+            email: cleanEmail,
+            full_name: cleanName,
+            role: input.role,
+            password_hash: "SUPABASE_AUTH_MANAGED",
+            is_active: true,
+            created_by: createdByAdminId || null,
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          return { success: true, account: mapDbAccountToStaffAccount(data) };
+        } else if (error) {
+          await adminClient.auth.admin.deleteUser(authUserId);
+          return { success: false, error: error.message };
+        }
+      } else {
+        return { success: false, error: "Supabase admin client not configured." };
       }
     } catch (err: any) {
-      console.warn("Supabase direct staff account insert error:", err);
+      console.warn("Supabase admin create user error:", err);
     }
   }
 
@@ -430,36 +394,36 @@ export async function resetStaffPassword(
 
   const supabase = createClient();
   if (supabase) {
-    // 1. Try RPC reset_staff_password
     try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc("reset_staff_password", {
-        p_account_id: accountId,
-        p_new_password: cleanPass,
-      });
+      const adminClient = createAdminClient();
+      if (adminClient) {
+        const { data: authUser, error: authError } = await adminClient.auth.admin.updateUserById(accountId, {
+          password: cleanPass
+        });
+        
+        if (authError) {
+          const { data: rpcData, error: rpcError } = await adminClient.rpc("reset_staff_password", {
+            p_account_id: accountId,
+            p_new_password: cleanPass,
+          });
 
-      if (!rpcError && rpcData?.success) {
-        return { success: true };
+          if (!rpcError && rpcData?.success) {
+            return { success: true };
+          }
+          return { success: false, error: rpcError?.message || "Failed to reset password." };
+        } else {
+           await adminClient
+             .from("staff_accounts")
+             .update({
+               password_hash: "SUPABASE_AUTH_MANAGED",
+               updated_at: new Date().toISOString(),
+             })
+             .eq("id", accountId);
+           return { success: true };
+        }
       }
-    } catch (rpcErr) {
-      console.warn("Supabase reset_staff_password RPC fallback:", rpcErr);
-    }
-
-    // 2. Direct update in staff_accounts
-    try {
-      const { error: updateError } = await supabase
-        .from("staff_accounts")
-        .update({
-          password_hash: cleanPass,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", accountId);
-
-      if (!updateError) {
-        return { success: true };
-      }
-      return { success: false, error: updateError.message };
     } catch (err: any) {
-      console.warn("Supabase direct reset password error:", err);
+      console.warn("Supabase reset password error:", err);
     }
   }
 

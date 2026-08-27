@@ -44,6 +44,7 @@ export default function AdminDoctorsPage() {
   const [qualifications, setQualifications] = useState("MBBS, MD");
   const [experience, setExperience] = useState(10);
   const [languages, setLanguages] = useState("English, Bengali, Hindi");
+  const [registrationNumber, setRegistrationNumber] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -75,6 +76,7 @@ export default function AdminDoctorsPage() {
     setQualifications("MBBS, MD");
     setExperience(10);
     setLanguages("English, Bengali, Hindi");
+    setRegistrationNumber("");
     setPhotoUrl("");
     setIsActive(true);
     setIsCreating(true);
@@ -91,6 +93,7 @@ export default function AdminDoctorsPage() {
         ? doc.languages.join(", ")
         : "English, Bengali, Hindi"
     );
+    setRegistrationNumber(doc.registrationNumber || "");
     setPhotoUrl(doc.photoUrl || "");
     setIsActive(doc.active);
   };
@@ -137,6 +140,7 @@ export default function AdminDoctorsPage() {
           { day: "Monday–Wednesday", startTime: "09:00", endTime: "13:00" },
         ],
         languages: spokenLangs.length > 0 ? spokenLangs : ["English", "Bengali", "Hindi"],
+        registrationNumber: registrationNumber.trim(),
       };
       await saveDoctor(newDoc);
       setDoctorsList((prev) => [newDoc, ...prev]);
@@ -152,6 +156,7 @@ export default function AdminDoctorsPage() {
         photoUrl: photoUrl.trim() || null,
         active: isActive,
         languages: spokenLangs.length > 0 ? spokenLangs : ["English", "Bengali", "Hindi"],
+        registrationNumber: registrationNumber.trim(),
       };
       await saveDoctor(updatedDoc);
       setDoctorsList((prev) =>
@@ -344,6 +349,12 @@ export default function AdminDoctorsPage() {
                         <strong className="text-[var(--navy-950)]">Experience:</strong>{" "}
                         {doc.experienceYears} Years
                       </p>
+                      {doc.registrationNumber && (
+                        <p>
+                          <strong className="text-[var(--navy-950)]">Registration:</strong>{" "}
+                          {doc.registrationNumber}
+                        </p>
+                      )}
                       <div className="flex flex-wrap items-center gap-1 pt-0.5">
                         <span className="font-semibold text-[var(--navy-950)] mr-1">Languages:</span>
                         {(doc.languages && doc.languages.length > 0 ? doc.languages : ["English", "Bengali", "Hindi"]).map((lang, idx) => (
@@ -476,6 +487,20 @@ export default function AdminDoctorsPage() {
                     value={languages}
                     onChange={(e) => setLanguages(e.target.value)}
                     placeholder="English, Bengali, Hindi, Assamese, Sylheti"
+                    className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
+                    Registration Number
+                  </label>
+                  <input
+                    type="text"
+                    value={registrationNumber}
+                    onChange={(e) => setRegistrationNumber(e.target.value)}
+                    placeholder="e.g. WBMC-12345"
+                    required
                     className="w-full px-3 py-2 rounded-xl text-xs border border-[var(--mist)] focus:border-[var(--primary)] outline-none"
                   />
                 </div>

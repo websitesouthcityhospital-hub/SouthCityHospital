@@ -68,8 +68,8 @@ export function DepartmentsHighlight() {
                 >
                   {/* Icon */}
                   <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors group-hover:bg-[var(--blue-700)] group-hover:text-white"
-                    style={{ background: "var(--sky-100)", color: "var(--blue-700)" }}
+                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors group-hover:bg-[var(--primary)] group-hover:text-white"
+                    style={{ background: "var(--cloud)", color: "var(--primary)" }}
                     aria-hidden="true"
                   >
                     <Icon size={20} />

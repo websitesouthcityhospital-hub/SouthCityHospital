@@ -22,7 +22,7 @@ export const faqs: Faq[] = [
     question:
       "What clinical departments and diagnostic facilities are available?",
     answer:
-      "South City Hospital houses 11 specialized clinical departments (Internal Medicine, Orthopaedics, Neuro Surgery, Gynaecology, Cardiology, Paediatrics, Nephrology, Urology, Laparoscopic Surgery, Endoscopic Surgery, Plastic Surgery) and 12 diagnostic/critical care units.",
+      "South City Hospital houses 11 specialized clinical departments (Internal Medicine, Orthopaedics, Neuro Surgery, Gynecology and Obst, Cardiology, Paediatrics, Nephrology, Urology, Laparoscopic Surgery, Endoscopic Surgery, Plastic Surgery) and 12 diagnostic/critical care units.",
   },
   {
     id: "emergency-admission",

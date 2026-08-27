@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, UserRound } from "lucide-react";
-import { ScrollReveal } from "@/components/ui/motion";
+import { ScrollReveal, StaggerReveal, StaggerItem } from "@/components/ui/motion";
 import { useDoctors } from "@/services/doctors";
 
 /**
@@ -80,13 +80,13 @@ export function DoctorsHighlight() {
         )}
 
         {!isLoading && !isError && highlighted && highlighted.length > 0 && (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <StaggerReveal className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {highlighted.map((doctor) => (
-              <Link
-                key={doctor.id}
-                href="/doctors"
-                className="card border border-[var(--mist)] p-6 flex flex-col items-center text-center gap-3 group"
-              >
+              <StaggerItem key={doctor.id}>
+                <Link
+                  href="/doctors"
+                  className="card border border-[var(--mist)] p-6 flex flex-col items-center text-center gap-3 group h-full"
+                >
                 {/* Headshot */}
                 <div
                   className="relative w-20 h-20 rounded-full overflow-hidden border-2 shrink-0"
@@ -121,9 +121,10 @@ export function DoctorsHighlight() {
                   </p>
                 </div>
                 <span className="chip chip-diagnostic">{doctor.departmentSlug}</span>
-              </Link>
+                </Link>
+              </StaggerItem>
             ))}
-          </div>
+          </StaggerReveal>
         )}
       </div>
     </section>

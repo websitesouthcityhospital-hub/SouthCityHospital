@@ -213,13 +213,25 @@ export async function fetchOperationalDashboard(todayStr: string): Promise<Dashb
     }));
 
     // 2. Fetch doctors unavailable today
-    const { data: exceptionsData } = await supabase
-      .from("doctor_exceptions")
-      .select("*")
-      .eq("date", todayStr)
-      .eq("type", "full_day_unavailable");
-
-    const unavailableDoctorsCount = exceptionsData?.length || 0;
+    const { data: allDoctors } = await supabase.from("doctors").select("id").eq("active", true);
+    let unavailableDoctorsCount = 0;
+    if (allDoctors) {
+      await Promise.all(
+        allDoctors.map(async (doc: any) => {
+          try {
+            const { data: avail } = await supabase.rpc("get_doctor_availability_range", {
+              p_doctor_id: doc.id,
+              p_target_date: todayStr,
+            });
+            if (avail && avail.available === false) {
+              unavailableDoctorsCount++;
+            }
+          } catch (e) {
+            console.warn("Failed to fetch availability for doctor", doc.id);
+          }
+        })
+      );
+    }
 
     // 3. Fetch recent appointments
     const { data: recentData } = await supabase

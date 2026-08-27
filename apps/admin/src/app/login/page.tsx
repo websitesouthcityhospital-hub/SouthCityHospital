@@ -44,9 +44,8 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--navy-950)] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-[var(--primary)]/15 blur-[120px] pointer-events-none" />
+    <div className="min-h-screen bg-premium-atmosphere flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="noise-overlay" aria-hidden="true" />
 
       <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-2xl relative z-10 border border-slate-100">
         {/* Header Branding */}

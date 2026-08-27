@@ -90,16 +90,16 @@ export default function AboutPage() {
             <ScrollReveal className="card p-6 sm:p-8 border border-[var(--mist)] flex flex-col items-center text-center gap-4 sm:gap-5">
               <div className="relative p-1 rounded-full bg-gradient-to-tr from-[var(--primary)] to-[var(--accent)] mb-2">
                 <div
-                  className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden"
+                  className="relative w-60 h-60 sm:w-72 sm:h-72 rounded-full overflow-hidden"
                   style={{ background: "var(--primary-dark)" }}
                   aria-hidden="true"
                 >
                   <Image
-                    src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=800&auto=format&fit=crop"
+                    src="/nilava-mazumder.webp"
                     alt={`${hospital.managingPartner}, Managing Partner`}
                     fill
                     className="object-cover"
-                    sizes="96px"
+                    sizes="288px"
                   />
                 </div>
               </div>

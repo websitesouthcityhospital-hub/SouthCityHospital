@@ -25,6 +25,7 @@ import {
   addOrUpdateException,
   removeException,
 } from "@/services/doctor-schedules";
+import { fetchDoctorAvailabilityRange } from "@/services/slots";
 import { exportSingleDoctorBookingsXlsx } from "@/lib/excel-export";
 import { getBookingsForDate } from "@/services/admin-bookings";
 import { useDepartments } from "@/services/departments";
@@ -65,10 +66,12 @@ export default function AdminSchedulesPage() {
   const [exceptionStart, setExceptionStart] = useState("09:00");
   const [exceptionEnd, setExceptionEnd] = useState("13:00");
 
+  const [previewAvailability, setPreviewAvailability] = useState<{available: boolean, start_time: string|null, end_time: string|null, reason: string|null} | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
   const [newDay, setNewDay] = useState<DayOfWeek>("Monday");
   const [newStartTime, setNewStartTime] = useState("09:00");
   const [newEndTime, setNewEndTime] = useState("13:00");
-  const [newDuration, setNewDuration] = useState(30);
 
   const loadData = async (docId?: string) => {
     setIsLoadingSchedules(true);
@@ -116,6 +119,24 @@ export default function AdminSchedulesPage() {
     }
   }, [selectedDoctorId]);
 
+  useEffect(() => {
+    if (selectedDoctorId && selectedDateStr) {
+      setIsLoadingPreview(true);
+      fetchDoctorAvailabilityRange(selectedDoctorId, selectedDateStr)
+        .then((res) => {
+          setPreviewAvailability({
+            available: res.available,
+            start_time: res.start_time,
+            end_time: res.end_time,
+            reason: res.reason,
+          });
+        })
+        .finally(() => setIsLoadingPreview(false));
+    } else {
+      setPreviewAvailability(null);
+    }
+  }, [selectedDoctorId, selectedDateStr, exceptions, weeklySchedules]);
+
   const currentDoctor = doctors?.find((d) => d.id === selectedDoctorId);
   const currentDept = currentDoctor
     ? departments.find((dept) => dept.slug === currentDoctor.departmentSlug)
@@ -134,7 +155,7 @@ export default function AdminSchedulesPage() {
       dayOfWeek: newDay,
       startTime: newStartTime,
       endTime: newEndTime,
-      slotDurationMinutes: Number(newDuration),
+      slotDurationMinutes: 30, // Deprecated: Kept for DB constraint
       isActive: true,
     };
 
@@ -359,7 +380,7 @@ export default function AdminSchedulesPage() {
               {/* Calendar Grid */}
               <div className="grid grid-cols-7 gap-1.5">
                 {Array.from({ length: firstDayIndex }).map((_, i) => (
-                  <div key={`empty-${i}`} className="min-h-[72px] bg-[var(--cloud)]/20 rounded-xl border border-transparent" />
+                  <div key={`empty-${i}`} className="min-h-[96px] bg-[var(--cloud)]/20 rounded-xl border border-transparent" />
                 ))}
 
                 {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -368,25 +389,48 @@ export default function AdminSchedulesPage() {
                   const ex = doctorExceptions.find((e) => e.date === dateStr);
                   const isSelected = selectedDateStr === dateStr;
 
+                  const dayDate = new Date(year, month, dayNum);
+                  const currentDayOfWeek = DAYS[dayDate.getDay() === 0 ? 6 : dayDate.getDay() - 1]; // DAYS is Mon-Sun, getDay is Sun=0
+                  const daySchedule = doctorWeeklySchedules.find((s) => s.dayOfWeek === currentDayOfWeek);
+                  const isLeave = ex && ex.type === "full_day_unavailable";
+                  const isModified = ex && ex.type !== "full_day_unavailable";
+                  
+                  const displayStart = (isModified && ex.type === "custom_hours" && ex.startTime) ? ex.startTime : daySchedule?.startTime;
+                  const displayEnd = (isModified && ex.type === "custom_hours" && ex.endTime) ? ex.endTime : daySchedule?.endTime;
+
                   return (
                     <button
                       key={dateStr}
                       type="button"
                       onClick={() => handleDateClick(dateStr)}
-                      className={`min-h-[72px] p-1.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                      className={`min-h-[96px] p-1.5 rounded-xl border text-left flex flex-col transition-all cursor-pointer ${
                         isSelected
                           ? "border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-sky-50/50"
-                          : ex
-                          ? ex.type === "full_day_unavailable"
-                            ? "bg-red-50/60 border-red-200"
-                            : "bg-amber-50/60 border-amber-200"
-                          : "bg-white border-[var(--mist)] hover:border-slate-300"
+                          : isLeave
+                            ? "bg-red-50 border-red-200"
+                            : isModified
+                              ? "bg-orange-50 border-orange-200 shadow-sm"
+                              : daySchedule
+                                ? "bg-emerald-50 border-emerald-200 shadow-sm"
+                                : "bg-white border-[var(--mist)] hover:border-slate-300"
                       }`}
                     >
-                      <span className="font-bold text-xs text-[var(--navy-950)]">{dayNum}</span>
+                      <span className="font-bold text-xs text-[var(--navy-950)] mb-1">{dayNum}</span>
+
+                      {!isLeave && displayStart && displayEnd && (
+                        <div className="w-full text-center mt-auto">
+                          <div className={`text-[11px] font-bold px-1 py-1 rounded w-full flex flex-col items-center justify-center leading-tight shadow-sm ${
+                            isModified ? "bg-orange-100 text-orange-800" : "bg-emerald-100 text-emerald-800"
+                          }`}>
+                            <span>{format12Hour(displayStart)}</span>
+                            <span className="text-[9px] opacity-70 font-semibold my-0.5">to</span>
+                            <span>{format12Hour(displayEnd)}</span>
+                          </div>
+                        </div>
+                      )}
 
                       {ex && (
-                        <div className="w-full truncate">
+                        <div className="w-full truncate mt-auto">
                           <span
                             className={`chip text-[9px] font-bold py-0.2 px-1 block truncate text-center ${
                               ex.type === "full_day_unavailable"
@@ -427,6 +471,44 @@ export default function AdminSchedulesPage() {
                     >
                       <X size={16} />
                     </button>
+                  </div>
+
+                  {/* Live Preview Widget */}
+                  <div className="bg-[var(--cloud)] rounded-xl border border-[var(--mist)] p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--slate)]">
+                        Live Availability Preview
+                      </p>
+                      {isLoadingPreview && (
+                        <div className="w-3 h-3 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                      )}
+                    </div>
+                    
+                    {!isLoadingPreview && previewAvailability && (
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                          {previewAvailability.available ? (
+                            <CheckCircle2 size={16} className="text-emerald-500" />
+                          ) : (
+                            <Ban size={16} className="text-red-500" />
+                          )}
+                          <span className={`text-sm font-bold ${previewAvailability.available ? 'text-emerald-700' : 'text-red-700'}`}>
+                            {previewAvailability.available ? 'Available' : 'Unavailable'}
+                          </span>
+                        </div>
+                        {previewAvailability.available && previewAvailability.start_time && previewAvailability.end_time && (
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--navy-950)] bg-white border border-[var(--mist)] rounded-lg px-2 py-1 w-fit">
+                            <Clock size={13} className="text-[var(--primary)]" />
+                            <span>{previewAvailability.start_time} – {previewAvailability.end_time}</span>
+                          </div>
+                        )}
+                        {previewAvailability.reason && (
+                          <p className="text-[11px] text-[var(--slate)] italic mt-1 leading-tight">
+                            Note: {previewAvailability.reason}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -541,9 +623,6 @@ export default function AdminSchedulesPage() {
                         <span className="text-xs text-[var(--slate)] font-mono">
                           {format12Hour(slot.startTime)} – {format12Hour(slot.endTime)}
                         </span>
-                        <span className="chip text-[10px] py-0.5 px-2 bg-sky-50 text-sky-700 border-sky-200">
-                          {slot.slotDurationMinutes} min interval
-                        </span>
                       </div>
 
                       <button
@@ -603,23 +682,6 @@ export default function AdminSchedulesPage() {
                       className="w-full text-xs border border-[var(--mist)] rounded-xl px-2 py-1.5 outline-none"
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
-                    Slot Duration (Minutes)
-                  </label>
-                  <select
-                    value={newDuration}
-                    onChange={(e) => setNewDuration(Number(e.target.value))}
-                    className="w-full text-xs bg-white border border-[var(--mist)] rounded-xl px-3 py-2 outline-none focus:border-[var(--primary)]"
-                  >
-                    <option value={15}>15 Minutes</option>
-                    <option value={20}>20 Minutes</option>
-                    <option value={30}>30 Minutes</option>
-                    <option value={45}>45 Minutes</option>
-                    <option value={60}>60 Minutes</option>
-                  </select>
                 </div>
 
                 <button type="submit" className="btn btn-primary text-xs py-2 w-full justify-center mt-2">

@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Phone, CalendarCheck, ArrowRight, MapPin } from "lucide-react";
@@ -9,12 +10,22 @@ import { hospital } from "@/data/hospital";
 import { fadeUpVariants, staggerContainerVariants, staggerItemVariants, Floating } from "@/components/ui/motion";
 
 export function HeroSection() {
+  const containerRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end start"],
+  });
+  
+  // Subtle parallax effect: image moves down 15% as user scrolls
+  const yParallax = useTransform(scrollYProgress, [0, 1], ["0%", "15%"]);
 
   return (
     <section
+      ref={containerRef}
       aria-label="Hero — South City Hospital"
-      className="relative overflow-hidden bg-hero-gradient min-h-auto lg:min-h-[90vh] flex items-center"
+      className="relative overflow-hidden bg-premium-atmosphere min-h-auto lg:min-h-[90vh] flex items-center"
     >
+      <div className="noise-overlay" aria-hidden="true" />
       {/* Background decoration for the blue area */}
       <div
         className="absolute inset-0 opacity-10 pointer-events-none z-0 lg:w-1/2"
@@ -56,9 +67,10 @@ export function HeroSection() {
       </div>
 
       {/* Desktop right-side full-bleed image with smooth horizontal fade mask */}
-      <div 
+      <motion.div 
         className="absolute inset-y-0 right-0 z-0 hidden lg:block lg:w-[60%]"
         style={{
+          y: yParallax,
           maskImage: "linear-gradient(to right, transparent 0%, black 25%, black 100%)",
           WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 25%, black 100%)"
         }}
@@ -72,7 +84,7 @@ export function HeroSection() {
           className="object-cover object-left"
         />
         <div className="absolute inset-0 bg-[var(--blue-950)]/10 mix-blend-multiply" />
-      </div>
+      </motion.div>
 
       <div className="container-site w-full pt-8 pb-12 sm:pt-14 sm:pb-16 lg:pt-24 lg:pb-20 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">

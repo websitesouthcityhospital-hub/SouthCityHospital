@@ -93,6 +93,17 @@ export default function BookingsHubPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <AdminLayout userRole={userRole}>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+          <div className="w-10 h-10 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm font-medium text-[var(--slate)]">Loading bookings data...</p>
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout userRole={userRole}>
       <div className="space-y-6">
@@ -197,7 +208,7 @@ export default function BookingsHubPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[var(--cloud)]/60 text-[var(--slate)] font-bold border-b border-[var(--mist)] uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-4">Time Slot</th>
+                  <th className="py-3 px-4">Time Preference</th>
                   <th className="py-3 px-4">Patient Name</th>
                   <th className="py-3 px-4">Phone Number</th>
                   <th className="py-3 px-4">Doctor &amp; Specialty</th>
@@ -232,7 +243,9 @@ export default function BookingsHubPage() {
                       <td className="py-3.5 px-4 font-semibold text-[var(--navy-950)] whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Clock size={13} className="text-[var(--primary)] shrink-0" />
-                          <span>{apt.preferredTimeSlot || "Hospital OPD"}</span>
+                          <span className={!apt.preferredTimeSlot ? "text-[var(--slate)] font-normal italic" : ""}>
+                            {apt.preferredTimeSlot || "Not specified"}
+                          </span>
                         </div>
                       </td>
 

@@ -107,7 +107,7 @@ export function PulseLineWatermark({ className }: { className?: string }) {
 
   return (
     <svg
-      className={cn("absolute inset-0 w-full h-full pointer-events-none opacity-[0.12]", className)}
+      className={cn("absolute inset-0 w-full h-full pointer-events-none opacity-40", className)}
       preserveAspectRatio="none"
       viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"

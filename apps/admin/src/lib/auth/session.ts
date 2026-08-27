@@ -1,12 +1,22 @@
 import { cookies } from "next/headers";
-import type { AuthSession, UserRole } from "@sch/types";
+import { SignJWT, jwtVerify } from "jose";
+import type { AuthSession } from "@sch/types";
 
 const ADMIN_SESSION_COOKIE = "sch_admin_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60; // 60 minutes session
+const SECRET_KEY = process.env.JWT_SECRET_KEY || "super-secret-default-key-for-dev";
+const encodedKey = new TextEncoder().encode(SECRET_KEY);
 
 export async function setSessionCookie(session: AuthSession): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
+  
+  const token = await new SignJWT(session as any)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${SESSION_MAX_AGE_SECONDS}s`)
+    .sign(encodedKey);
+
+  cookieStore.set(ADMIN_SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -29,12 +39,10 @@ export async function getSessionUser(): Promise<AuthSession | null> {
   }
 
   try {
-    const session: AuthSession = JSON.parse(sessionCookie.value);
-    const expiresAt = new Date(session.expiresAt).getTime();
-    if (Date.now() > expiresAt) {
-      return null;
-    }
-    return session;
+    const { payload } = await jwtVerify(sessionCookie.value, encodedKey, {
+      algorithms: ["HS256"],
+    });
+    return payload as unknown as AuthSession;
   } catch {
     return null;
   }

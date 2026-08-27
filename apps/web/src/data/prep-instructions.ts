@@ -10,7 +10,7 @@ export const departmentPrepInstructions: Record<string, string> = {
     "Please carry any past X-Ray films, MRI/CT scans, and bone health records. Wear comfortable clothing for joint mobility assessment.",
   "neuro-surgery":
     "Please bring recent Brain/Spine MRI, CT scans, and detailed neurological prescription history.",
-  "gynaecology-obstetrics":
+  "gynecology-and-obst":
     "Please carry your complete antenatal booklet, recent ultrasound scan plates, and latest blood test results.",
   "paediatrics":
     "Please bring the child's immunization card, birth record, and growth history tracking book.",

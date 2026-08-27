@@ -112,6 +112,17 @@ export default function AdminDashboardPage() {
     );
   }
 
+  if (isLoading) {
+    return (
+      <AdminLayout userRole="admin">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+          <div className="w-10 h-10 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm font-medium text-[var(--slate)]">Loading operational data...</p>
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout userRole="admin">
       <div className="space-y-6">

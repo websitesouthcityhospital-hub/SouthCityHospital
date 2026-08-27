@@ -3,13 +3,14 @@
 import { motion } from "framer-motion";
 
 export default function Template({ children }: { children: React.ReactNode }) {
+  // Ultra-fast fade for admin efficiency
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ 
-        duration: 0.35, 
-        ease: [0.16, 1, 0.3, 1]
+        duration: 0.15, 
+        ease: "easeInOut"
       }}
     >
       {children}

@@ -101,9 +101,9 @@ export const departments: Department[] = [
     color: "var(--primary-mid)",
   },
   {
-    id: "gynaecology",
-    slug: "gynaecology",
-    name: "Gynaecology",
+    id: "gynecology-and-obst",
+    slug: "gynecology-and-obst",
+    name: "Gynecology and Obst",
     shortDescription:
       "Women's healthcare, maternity services, and reproductive health care.",
     overview:

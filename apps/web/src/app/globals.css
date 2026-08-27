@@ -37,10 +37,14 @@
   --teal-600: var(--gold-500); /* Backwards compat for inline usage */
   --ink: var(--ink-900);
   --slate: var(--ink-600);
+  --slate: var(--ink-600);
   --mist: var(--ink-300);
-  --cloud: var(--blue-50);
+  --cloud: #E6F3FA; /* A more distinct light blue background */
   --emergency: var(--coral-600);
   --emergency-light: rgba(214, 83, 79, 0.1);
+
+  /* Atmosphere */
+  --noise-opacity: 0.04;
 
   /* Typography */
   --font-display: var(--font-display, "Playfair Display", Georgia, serif);
@@ -60,7 +64,7 @@
   --text-xs: 0.75rem;
 
   /* Spacing - Mobile First */
-  --section-y: 3.25rem;
+  --section-y: 1.5rem;
   --container-px: 1rem;
 
   /* Radius */
@@ -215,8 +219,33 @@ body {
   scrollbar-width: none;
 }
 
-.input-base {
+.input-base,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="date"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
   font-size: 16px !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.input-base:focus-visible,
+input[type="text"]:focus-visible,
+input[type="email"]:focus-visible,
+input[type="password"]:focus-visible,
+input[type="tel"]:focus-visible,
+input[type="date"]:focus-visible,
+input[type="number"]:focus-visible,
+input[type="search"]:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 4px var(--primary-light) !important;
 }
 @media (min-width: 640px) {
   .input-base {
@@ -246,21 +275,21 @@ body {
 
 @media (min-width: 768px) {
   :root {
-    --container-px: 2rem;
-    --section-y: 6rem;
+    --container-px: 1.5rem;
+    --section-y: 2.5rem;
   }
   .container-site {
-    padding-inline: 2rem;
+    padding-inline: 1.5rem;
   }
 }
 
 @media (min-width: 1280px) {
   :root {
-    --container-px: 4rem;
-    --section-y: 7rem;
+    --container-px: 2rem;
+    --section-y: 3rem;
   }
   .container-site {
-    padding-inline: 4rem;
+    padding-inline: 2rem;
   }
 }
 
@@ -382,7 +411,8 @@ body {
     outline-offset: 2px;
   }
   .btn:active {
-    transform: scale(0.97) !important;
+    transform: translateY(0) scale(0.98) !important;
+    box-shadow: 0 1px 2px rgba(7, 27, 61, 0.1) !important;
   }
   .btn:disabled {
     opacity: 0.6;
@@ -445,7 +475,13 @@ body {
   }
 }
 
-/* ─── CUSTOM BACKGROUNDS ────────────────────────────────────── */
+/* ─── PREMIUM ATMOSPHERE ────────────────────────────────────── */
+@keyframes aurora-pan {
+  0% { transform: scale(1.1) translate(-2%, -2%); }
+  50% { transform: scale(1) translate(2%, 2%); }
+  100% { transform: scale(1) translate(0, 0); }
+}
+
 .bg-hero-gradient {
   background: linear-gradient(135deg, var(--blue-950) 0%, var(--blue-800) 55%, var(--blue-600) 100%);
   position: relative;
@@ -461,4 +497,49 @@ body {
   background: radial-gradient(circle, rgba(201, 161, 92, 0.15) 0%, rgba(201, 161, 92, 0) 70%);
   filter: blur(40px);
   pointer-events: none;
+}
+
+.bg-premium-atmosphere {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--blue-950);
+}
+
+.bg-premium-atmosphere::before,
+.bg-premium-atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 1s ease-in-out;
+}
+
+/* Layer 1: Soft deep blue orb */
+.bg-premium-atmosphere::before {
+  background: radial-gradient(circle at 30% 30%, var(--blue-800) 0%, transparent 60%);
+  animation: aurora-pan 25s ease-in-out infinite alternate;
+}
+
+/* Layer 2: Subtle gold/accent glow */
+.bg-premium-atmosphere::after {
+  background: radial-gradient(circle at 70% 60%, rgba(201, 161, 92, 0.15) 0%, transparent 50%);
+  animation: aurora-pan 30s ease-in-out infinite alternate-reverse;
+}
+
+.noise-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: var(--noise-opacity);
+  mix-blend-mode: overlay;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-premium-atmosphere::before,
+  .bg-premium-atmosphere::after {
+    animation: none !important;
+  }
 }

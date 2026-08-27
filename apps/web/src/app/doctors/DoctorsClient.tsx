@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { CalendarCheck, UserRound, Stethoscope, BadgeCheck, Phone } from "lucide-react";
@@ -10,8 +10,69 @@ import { ScrollReveal, StaggerReveal, StaggerItem, staggerItemVariants } from "@
 import { FloatingBlobs, PulseLineWatermark } from "@/components/ui/svg-patterns";
 import { DoctorBookingModal } from "@/components/booking/DoctorBookingModal";
 import { BookingConfirmationModal } from "@/components/booking/BookingConfirmationModal";
+import { fetchDoctorWeeklySchedules, type WeeklyScheduleItem } from "@/services/slots";
+import { format12Hour } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { Doctor, Appointment } from "@sch/types";
+
+const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+function groupSchedules(schedules: WeeklyScheduleItem[]): string[] {
+  if (schedules.length === 0) return [];
+  const sorted = [...schedules].sort((a, b) => DAYS_ORDER.indexOf(a.dayOfWeek) - DAYS_ORDER.indexOf(b.dayOfWeek));
+  
+  const groups: { startDay: string; endDay: string; startTime: string; endTime: string }[] = [];
+  
+  for (const s of sorted) {
+    const last = groups[groups.length - 1];
+    if (last && last.startTime === s.startTime && last.endTime === s.endTime) {
+      const lastIndex = DAYS_ORDER.indexOf(last.endDay);
+      const currentIndex = DAYS_ORDER.indexOf(s.dayOfWeek);
+      if (currentIndex === lastIndex + 1) {
+        last.endDay = s.dayOfWeek;
+        continue;
+      }
+    }
+    groups.push({ startDay: s.dayOfWeek, endDay: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime });
+  }
+  
+  return groups.map(g => {
+    const timeStr = `${format12Hour(g.startTime)} – ${format12Hour(g.endTime)}`;
+    if (g.startDay === g.endDay) return `${g.startDay}: ${timeStr}`;
+    return `${g.startDay}–${g.endDay}: ${timeStr}`;
+  });
+}
+
+function DoctorScheduleDisplay({ doctorId }: { doctorId: string }) {
+  const [schedules, setSchedules] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDoctorWeeklySchedules(doctorId).then((res) => {
+      setSchedules(groupSchedules(res));
+      setLoading(false);
+    });
+  }, [doctorId]);
+
+  if (loading) return null;
+
+  return (
+    <div className="w-full text-left border-t border-[var(--mist)] pt-3">
+      <p className="eyebrow mb-1.5 text-[var(--primary-mid)] text-[10px]">Consultation Hours</p>
+      {schedules.length > 0 ? (
+        <div className="space-y-1">
+          {schedules.map((s, i) => (
+            <p key={i} className="text-xs font-medium text-[var(--navy-950)]">
+              {s}
+            </p>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-[var(--slate)] italic">Standard OPD Hours</p>
+      )}
+    </div>
+  );
+}
 
 function DoctorSkeleton() {
   return (
@@ -27,18 +88,7 @@ function DoctorSkeleton() {
   );
 }
 
-function format12Hour(time24: string): string {
-  if (!time24) return time24;
-  const parts = time24.split(":");
-  if (parts.length < 2) return time24;
-  let hours = parseInt(parts[0], 10);
-  const minutes = parts[1];
-  if (isNaN(hours)) return time24;
-  const ampm = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  return `${hours}:${minutes} ${ampm}`;
-}
+
 
 function DoctorCard({ doctor, onBook }: { doctor: Doctor; onBook: (doctor: Doctor) => void }) {
   const dept = departments.find((d) => d.slug === doctor.departmentSlug);
@@ -53,7 +103,7 @@ function DoctorCard({ doctor, onBook }: { doctor: Doctor; onBook: (doctor: Docto
       {doctor.photoUrl ? (
         <div className="relative p-1 rounded-2xl bg-gradient-to-tr from-[var(--navy-950)] via-[var(--primary)] to-[var(--accent)] shadow-md mb-2">
           <div
-            className="relative w-24 h-24 rounded-xl overflow-hidden"
+            className="relative w-32 h-32 rounded-xl overflow-hidden"
             style={{ background: "var(--primary-dark)" }}
             aria-hidden="true"
           >
@@ -62,7 +112,8 @@ function DoctorCard({ doctor, onBook }: { doctor: Doctor; onBook: (doctor: Docto
               alt={displayName}
               fill
               className="object-cover"
-              sizes="96px"
+              sizes="128px"
+              priority={true}
             />
           </div>
           <div className="absolute bottom-[-6px] right-[-6px] z-20 bg-white rounded-full p-1 shadow-sm">
@@ -70,8 +121,8 @@ function DoctorCard({ doctor, onBook }: { doctor: Doctor; onBook: (doctor: Docto
           </div>
         </div>
       ) : (
-        <div className="w-24 h-24 rounded-2xl bg-[var(--sky-100)] border border-[var(--mist)] flex items-center justify-center shrink-0 mb-2 text-[var(--primary)] shadow-xs">
-          <Stethoscope size={36} aria-hidden="true" />
+        <div className="w-32 h-32 rounded-2xl bg-[var(--cloud)] border border-[var(--mist)] flex items-center justify-center shrink-0 mb-2 text-[var(--primary)] shadow-xs">
+          <Stethoscope size={48} aria-hidden="true" />
         </div>
       )}
 
@@ -80,6 +131,9 @@ function DoctorCard({ doctor, onBook }: { doctor: Doctor; onBook: (doctor: Docto
         <p className="text-xs text-[var(--slate)] mt-0.5">{doctor.qualifications.join(", ")}</p>
         {doctor.experienceYears > 0 && (
           <p className="font-semibold text-xs mt-1.5 text-[var(--primary)]">{doctor.experienceYears} yrs experience</p>
+        )}
+        {doctor.registrationNumber && (
+          <p className="text-[11px] font-medium text-[var(--slate)] mt-0.5">Reg. No: {doctor.registrationNumber}</p>
         )}
       </div>
 
@@ -99,19 +153,7 @@ function DoctorCard({ doctor, onBook }: { doctor: Doctor; onBook: (doctor: Docto
         </div>
       )}
 
-      {doctor.consultationSchedule.length > 0 && (
-        <div className="w-full text-left border-t border-[var(--mist)] pt-3">
-          <p className="eyebrow mb-1.5 text-[var(--primary-mid)] text-[10px]">Consultation Hours</p>
-          <div className="space-y-1">
-            {doctor.consultationSchedule.slice(0, 2).map((s, i) => (
-              <p key={i} className="text-xs text-[var(--slate)]">
-                <span className="font-semibold text-[var(--navy-950)]">{s.day}:</span>{" "}
-                {format12Hour(s.startTime)} – {format12Hour(s.endTime)}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
+      <DoctorScheduleDisplay doctorId={doctor.id} />
 
       <button
         onClick={() => onBook(doctor)}
@@ -255,7 +297,7 @@ export function DoctorsClient() {
               {displayedDepartments.map((dept) => (
                 <section key={dept.slug} className="space-y-5" aria-labelledby={`dept-heading-${dept.slug}`}>
                   <div className="flex items-center gap-3 pb-2 border-b border-[var(--mist)]">
-                    <div className="w-8 h-8 rounded-lg bg-[var(--sky-100)] text-[var(--primary)] flex items-center justify-center shrink-0" aria-hidden="true">
+                    <div className="w-8 h-8 rounded-lg bg-[var(--cloud)] text-[var(--primary)] flex items-center justify-center shrink-0" aria-hidden="true">
                       <Stethoscope size={16} />
                     </div>
                     <div>
