@@ -178,16 +178,10 @@ export function Navbar() {
           </ul>
 
           {/* Desktop CTA */}
-          <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0 ml-3 xl:ml-5">
-            <Link
-              href="/booking-status"
-              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg text-[var(--slate)] hover:text-[var(--primary)] hover:bg-[var(--cloud)] transition-colors whitespace-nowrap"
-            >
-              Check Status
-            </Link>
+          <div className="hidden lg:flex items-center shrink-0 ml-3 xl:ml-6">
             <Link
               href="/doctors"
-              className="btn btn-primary text-xs xl:text-sm py-2 px-3.5 xl:px-4"
+              className="btn btn-primary text-xs xl:text-sm py-2 px-4"
             >
               Book Appointment
             </Link>
@@ -246,53 +240,43 @@ export function Navbar() {
                 {/* Drawer */}
                 <motion.div
                   key="mobile-menu"
-                  id="mobile-menu"
                   ref={mobileMenuRef}
+                  id="mobile-menu"
                   role="dialog"
-                  aria-label="Navigation menu"
                   aria-modal="true"
-                  className="fixed top-0 right-0 bottom-0 w-[min(320px,90vw)] bg-white z-10 flex flex-col overflow-y-auto"
-                  style={{ boxShadow: "var(--shadow-overlay)" }}
+                  aria-label="Navigation Menu"
+                  className="fixed top-0 right-0 bottom-0 w-[min(300px,82vw)] bg-white z-[99999] shadow-2xl flex flex-col justify-between overflow-hidden"
                   initial={{ x: "100%" }}
                   animate={{ x: 0 }}
                   exit={{ x: "100%" }}
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  transition={{ type: "spring", damping: 28, stiffness: 300 }}
                 >
                   {/* Drawer Header */}
-                  <div
-                    className="flex items-center justify-between p-4 border-b shrink-0"
-                    style={{ borderColor: "var(--mist)" }}
-                  >
-                    <div className="flex items-center gap-2.5">
+                  <div className="p-4 border-b flex items-center justify-between bg-white shrink-0" style={{ borderColor: "var(--mist)" }}>
+                    <div className="flex items-center gap-2">
                       <Image
                         src="/logo.jpg"
-                        alt="South City Hospital Logo"
-                        width={36}
-                        height={36}
-                        className="rounded-lg object-cover w-9 h-9"
+                        alt="Logo"
+                        width={28}
+                        height={28}
+                        className="rounded-md object-cover"
                       />
-                      <div>
-                        <span
-                          className="font-display font-semibold text-sm block"
-                          style={{ color: "var(--primary-dark)" }}
-                        >
-                          South City Hospital
-                        </span>
-                        <span className="text-[10px] text-[var(--slate)]">Meherpur, Silchar</span>
-                      </div>
+                      <span className="font-display font-bold text-xs text-[var(--primary-dark)]">
+                        South City Hospital
+                      </span>
                     </div>
                     <button
                       onClick={() => setMobileOpen(false)}
-                      className="p-1.5 rounded-lg text-[var(--slate)] hover:text-[var(--navy-950)] hover:bg-[var(--cloud)] transition-colors"
+                      className="p-1.5 rounded-lg text-[var(--slate)] hover:bg-[var(--cloud)] transition-colors"
                       aria-label="Close menu"
                     >
-                      <X size={20} />
+                      <X size={18} />
                     </button>
                   </div>
 
-                  {/* Nav Links */}
-                  <nav className="flex-1 p-3.5" aria-label="Mobile navigation">
-                    <ul className="space-y-1" role="list">
+                  {/* Drawer Links */}
+                  <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Mobile menu links">
+                    <ul className="space-y-0.5" role="list">
                       {NAV_LINKS.map((link, i) => {
                         const isActive =
                           link.href === "/"
@@ -301,22 +285,23 @@ export function Navbar() {
                         return (
                           <motion.li
                             key={link.href}
-                            initial={{ opacity: 0, x: 16 }}
+                            initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: i * 0.03 + 0.05 }}
                           >
                             <Link
                               href={link.href}
+                              onClick={() => setMobileOpen(false)}
                               className={cn(
-                                "flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                                "flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all",
                                 isActive
-                                  ? "bg-[var(--primary-light)] text-[var(--primary)] font-semibold"
-                                  : "text-[var(--slate)] hover:bg-[var(--cloud)]"
+                                  ? "bg-[var(--primary-light)] text-[var(--primary-dark)] font-bold shadow-2xs"
+                                  : "text-[var(--slate)] hover:text-[var(--ink)] hover:bg-[var(--cloud)]"
                               )}
                               aria-current={isActive ? "page" : undefined}
                             >
-                              {link.label}
-                              <ChevronRight size={14} aria-hidden="true" className="opacity-60" />
+                              <span>{link.label}</span>
+                              <ChevronRight size={14} className="opacity-40" />
                             </Link>
                           </motion.li>
                         );
@@ -335,13 +320,6 @@ export function Navbar() {
                       className="btn btn-primary w-full text-center py-2.5 text-xs font-semibold"
                     >
                       Book Appointment
-                    </Link>
-                    <Link
-                      href="/booking-status"
-                      onClick={() => setMobileOpen(false)}
-                      className="btn btn-outline w-full text-center py-2 text-xs font-semibold bg-white"
-                    >
-                      Check Booking Status
                     </Link>
                     <a
                       href={`tel:${hospital.contact.emergency.replace(/\s/g, "")}`}

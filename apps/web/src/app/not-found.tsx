@@ -84,11 +84,11 @@ export default function NotFound() {
           </Link>
 
           <Link
-            href="/booking-status"
+            href="/doctors"
             className="btn btn-outline text-xs py-2.5 px-4 gap-2 inline-flex items-center text-white border-white/25 hover:bg-white/10 hover:text-white"
           >
-            <Search size={15} />
-            <span>Check Booking Status</span>
+            <Stethoscope size={15} />
+            <span>Find a Doctor</span>
           </Link>
 
           <Link

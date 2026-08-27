@@ -9,7 +9,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: "/doctors", priority: 0.9, changeFrequency: "daily" as const },
     { url: "/departments", priority: 0.9, changeFrequency: "monthly" as const },
     { url: "/facilities", priority: 0.8, changeFrequency: "monthly" as const },
-    { url: "/booking-status", priority: 0.8, changeFrequency: "always" as const },
     { url: "/about", priority: 0.7, changeFrequency: "monthly" as const },
     { url: "/contact", priority: 0.7, changeFrequency: "monthly" as const },
     { url: "/faq", priority: 0.6, changeFrequency: "monthly" as const },

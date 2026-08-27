@@ -289,24 +289,13 @@ export function BookingConfirmationModal({
             )}
           </button>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Link
-              href="/booking-status"
-              onClick={onClose}
-              className="btn btn-outline py-2 text-xs font-semibold flex items-center justify-center gap-1.5 min-h-[38px]"
-            >
-              <Search size={14} />
-              <span>Check Status</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-ghost py-2 text-xs font-semibold text-[var(--slate)] hover:text-[var(--navy-950)] hover:bg-[var(--cloud)] min-h-[38px]"
-            >
-              Done
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-outline w-full py-2 text-xs font-semibold text-[var(--slate)] hover:text-[var(--navy-950)] bg-white min-h-[38px]"
+          >
+            Close &amp; Return
+          </button>
         </div>
       </div>
     </div>

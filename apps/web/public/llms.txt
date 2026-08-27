@@ -52,14 +52,12 @@
 - **No Login Required:** Patients book with their Name, Phone Number, Date of Birth, and preferred time slot.
 - **No Advance Payment:** Doctor consultation fees are payable at the hospital registration reception upon arrival.
 - **Verification & PDF Slip:** Instant booking reference ID (format: `SCH-YYYY-XXXXX`) is generated with a downloadable PDF slip.
-- **Status Lookup:** Patients can check and track their appointments at `https://southcityhospital.in/booking-status` using their Booking Reference ID or Phone Number + Date of Birth.
 
 ## Canonical Website URLs
 - Home: https://southcityhospital.in
 - Our Doctors: https://southcityhospital.in/doctors
 - Departments: https://southcityhospital.in/departments
 - Facilities: https://southcityhospital.in/facilities
-- Booking Status: https://southcityhospital.in/booking-status
 - About Us: https://southcityhospital.in/about
 - Contact Us: https://southcityhospital.in/contact
 - Frequently Asked Questions: https://southcityhospital.in/faq
