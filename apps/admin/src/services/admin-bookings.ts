@@ -231,10 +231,11 @@ export async function getDashboardStats(): Promise<{
       ]);
 
       if (todayData && totalAllTime !== null && activeDoctors !== null) {
+        const list = todayData as Array<{ status: string }>;
         return {
-          totalToday: todayData.length,
-          confirmedToday: todayData.filter((a) => a.status === "Confirmed").length,
-          completedToday: todayData.filter((a) => a.status === "Completed").length,
+          totalToday: list.length,
+          confirmedToday: list.filter((a) => a.status === "Confirmed").length,
+          completedToday: list.filter((a) => a.status === "Completed").length,
           totalAllTime,
           activeDoctors,
         };

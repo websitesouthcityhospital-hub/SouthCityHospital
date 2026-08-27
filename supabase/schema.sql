@@ -564,7 +564,126 @@ BEGIN
 END;
 $$;
 
--- 16. SEED CLINICAL DEPARTMENTS (All 13 Clinical Departments)
+-- 16. RPC: VERIFY_STAFF_CREDENTIALS (Secure Postgres bcrypt password authentication)
+CREATE OR REPLACE FUNCTION verify_staff_credentials(
+  p_email TEXT,
+  p_password TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_account RECORD;
+BEGIN
+  SELECT * INTO v_account
+  FROM staff_accounts
+  WHERE LOWER(email) = LOWER(TRIM(p_email));
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Invalid email or password.');
+  END IF;
+
+  IF NOT v_account.is_active THEN
+    RETURN jsonb_build_object('success', false, 'error', 'This account has been deactivated. Please contact an administrator.');
+  END IF;
+
+  IF v_account.password_hash = crypt(p_password, v_account.password_hash) THEN
+    UPDATE staff_accounts 
+    SET last_login_at = now() 
+    WHERE id = v_account.id;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'user', jsonb_build_object(
+        'id', v_account.id,
+        'email', v_account.email,
+        'fullName', v_account.full_name,
+        'role', v_account.role,
+        'isActive', v_account.is_active
+      )
+    );
+  ELSE
+    RETURN jsonb_build_object('success', false, 'error', 'Invalid email or password.');
+  END IF;
+END;
+$$;
+
+-- 17. RPC: CREATE_STAFF_ACCOUNT (Admin-only creation with bcrypt password hashing)
+CREATE OR REPLACE FUNCTION create_staff_account(
+  p_email TEXT,
+  p_password TEXT,
+  p_full_name TEXT,
+  p_role user_role DEFAULT 'staff',
+  p_created_by UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_new_id UUID;
+  v_clean_email TEXT := LOWER(TRIM(p_email));
+BEGIN
+  IF EXISTS (SELECT 1 FROM staff_accounts WHERE LOWER(email) = v_clean_email) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'An account with this email address already exists.');
+  END IF;
+
+  INSERT INTO staff_accounts (
+    email,
+    password_hash,
+    full_name,
+    role,
+    is_active,
+    created_by
+  ) VALUES (
+    v_clean_email,
+    crypt(p_password, gen_salt('bf')),
+    TRIM(p_full_name),
+    p_role,
+    true,
+    p_created_by
+  )
+  RETURNING id INTO v_new_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'account', jsonb_build_object(
+      'id', v_new_id,
+      'email', v_clean_email,
+      'fullName', TRIM(p_full_name),
+      'role', p_role,
+      'isActive', true,
+      'createdAt', now()
+    )
+  );
+END;
+$$;
+
+-- 18. RPC: RESET_STAFF_PASSWORD (Admin-only password update with bcrypt hashing)
+CREATE OR REPLACE FUNCTION reset_staff_password(
+  p_account_id UUID,
+  p_new_password TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM staff_accounts WHERE id = p_account_id) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Account not found.');
+  END IF;
+
+  UPDATE staff_accounts
+  SET password_hash = crypt(p_new_password, gen_salt('bf')),
+      updated_at = now()
+  WHERE id = p_account_id;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+-- 19. SEED CLINICAL DEPARTMENTS (All 13 Clinical Departments)
 INSERT INTO departments (slug, name, description, icon) VALUES
 ('internal-medicine', 'Internal Medicine', 'Comprehensive primary care, chronic disease management, and adult health diagnostics.', 'Stethoscope'),
 ('orthopaedic-surgery', 'Orthopaedic Surgery', 'Advanced bone, joint, and trauma care, fracture management, and joint replacements.', 'Bone'),
@@ -588,13 +707,56 @@ INSERT INTO departments (slug, name, description, icon) VALUES
 ON CONFLICT (slug) DO UPDATE
 SET name = EXCLUDED.name, description = EXCLUDED.description, icon = EXCLUDED.icon;
 
--- 17. SEED INITIAL ADMIN & STAFF ACCOUNTS
--- Admin: Admin@SCH2026!
--- Staff: Staff@SCH2026!
-INSERT INTO staff_accounts (email, password_hash, full_name, role, is_active) VALUES
-('admin@southcityhospital.in', crypt('Admin@SCH2026!', gen_salt('bf')), 'Chief Medical Administrator', 'admin', true),
-('staff@southcityhospital.in', crypt('Staff@SCH2026!', gen_salt('bf')), 'Front Desk Officer', 'staff', true)
-ON CONFLICT (email) DO NOTHING;
+-- 20. SUPABASE AUTH USER SYNC TRIGGER
+-- Automatically provisions staff_accounts profile when an admin is created in Supabase Auth
+CREATE OR REPLACE FUNCTION handle_new_auth_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role user_role;
+  v_full_name TEXT;
+BEGIN
+  -- If first user or role specified as admin in metadata, assign admin role
+  IF NOT EXISTS (SELECT 1 FROM staff_accounts) THEN
+    v_role := 'admin';
+  ELSIF NEW.raw_user_meta_data->>'role' = 'admin' THEN
+    v_role := 'admin';
+  ELSE
+    v_role := 'staff';
+  END IF;
+
+  v_full_name := COALESCE(
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'name',
+    SPLIT_PART(NEW.email, '@', 1)
+  );
+
+  INSERT INTO staff_accounts (id, email, password_hash, full_name, role, is_active)
+  VALUES (
+    NEW.id,
+    LOWER(TRIM(NEW.email)),
+    'SUPABASE_AUTH_MANAGED',
+    v_full_name,
+    v_role,
+    true
+  )
+  ON CONFLICT (email) DO UPDATE
+  SET full_name = EXCLUDED.full_name,
+      updated_at = now();
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_auth_user();
 
 -- 18. SUPABASE STORAGE BUCKETS (DOCTOR AVATARS & GALLERY IMAGES - 50MB LIMIT)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

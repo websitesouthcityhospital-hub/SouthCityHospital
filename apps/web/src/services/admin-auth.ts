@@ -7,28 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const LOCAL_STAFF_STORAGE_KEY = "sch_staff_accounts_store";
 
-const DEFAULT_ACCOUNTS: (StaffAccount & { passwordHash: string })[] = [
-  {
-    id: "acc-admin-01",
-    email: "admin@southcityhospital.in",
-    fullName: "Super Administrator",
-    role: "admin",
-    isActive: true,
-    passwordHash: "Admin@SCH2026!",
-    createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
-    lastLoginAt: new Date().toISOString(),
-  },
-  {
-    id: "acc-staff-01",
-    email: "staff@southcityhospital.in",
-    fullName: "Front Desk Staff",
-    role: "staff",
-    isActive: true,
-    passwordHash: "Staff@SCH2026!",
-    createdAt: new Date(Date.now() - 86400000 * 15).toISOString(),
-    lastLoginAt: new Date().toISOString(),
-  },
-];
+const DEFAULT_ACCOUNTS: (StaffAccount & { passwordHash: string })[] = [];
 
 function getStoredStaff(): (StaffAccount & { passwordHash: string })[] {
   if (typeof window === "undefined") return DEFAULT_ACCOUNTS;
@@ -112,7 +91,7 @@ export async function authenticateCredentials(
     return { success: false, error: "This account has been deactivated. Please contact your administrator." };
   }
 
-  if (found.passwordHash !== cleanPass && cleanPass !== "Admin@SCH2026!" && cleanPass !== "Staff@SCH2026!") {
+  if (found.passwordHash !== cleanPass) {
     return { success: false, error: "Invalid email or password." };
   }
 
