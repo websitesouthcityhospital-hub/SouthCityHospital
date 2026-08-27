@@ -13,27 +13,7 @@ export interface SessionPayload {
   issuedAt: number;
 }
 
-// In-memory / fallback store for staff accounts in development mode
-const SEED_STAFF_ACCOUNTS: StaffAccount[] = [
-  {
-    id: "staff-seed-001",
-    email: "admin@southcityhospital.in",
-    fullName: "Super Administrator",
-    role: "admin",
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    lastLoginAt: new Date().toISOString(),
-  },
-  {
-    id: "staff-seed-002",
-    email: "staff@southcityhospital.in",
-    fullName: "Front Desk Staff",
-    role: "staff",
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    lastLoginAt: new Date().toISOString(),
-  },
-];
+const SEED_STAFF_ACCOUNTS: StaffAccount[] = [];
 
 export async function setSessionCookie(payload: Omit<SessionPayload, "issuedAt">): Promise<void> {
   const cookieStore = await cookies();

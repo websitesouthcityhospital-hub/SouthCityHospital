@@ -28,8 +28,8 @@ interface AdminLayoutProps {
 export function AdminLayout({
   children,
   userRole = "staff",
-  userEmail = "staff@southcityhospital.in",
-  userName = "Staff User",
+  userEmail = "",
+  userName = "Staff",
 }: AdminLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
