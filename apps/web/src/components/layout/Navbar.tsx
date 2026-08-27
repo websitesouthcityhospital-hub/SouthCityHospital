@@ -145,7 +145,7 @@ export function Navbar() {
           </Link>
 
           {/* Desktop Nav Links */}
-          <ul className="hidden lg:flex items-center gap-1" role="list">
+          <ul className="hidden lg:flex items-center gap-0.5 xl:gap-1 ml-6 xl:ml-10 2xl:ml-14" role="list">
             {NAV_LINKS.map((link) => {
               const isActive =
                 link.href === "/"
@@ -156,7 +156,7 @@ export function Navbar() {
                   <Link
                     href={link.href}
                     className={cn(
-                      "relative px-4 py-2 h-10 flex items-center text-sm font-semibold rounded-md transition-colors duration-200",
+                      "relative px-2 xl:px-2.5 py-1.5 h-9 flex items-center text-xs xl:text-sm font-semibold rounded-md transition-colors duration-200 whitespace-nowrap",
                       isActive
                         ? "text-[var(--primary-dark)]"
                         : "text-[var(--slate)] hover:text-[var(--primary)]"
@@ -167,7 +167,7 @@ export function Navbar() {
                     {isActive && (
                       <motion.div
                         layoutId="nav-underline"
-                        className="absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-[var(--primary-mid)]"
+                        className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[var(--primary-mid)]"
                         transition={{ type: "spring", stiffness: 380, damping: 30 }}
                       />
                     )}
@@ -178,25 +178,25 @@ export function Navbar() {
           </ul>
 
           {/* Desktop CTA */}
-          <div className="hidden lg:flex items-center gap-2.5">
+          <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0 ml-3 xl:ml-5">
             <Link
               href="/booking-status"
-              className="text-xs font-semibold px-3 py-2 rounded-lg text-[var(--slate)] hover:text-[var(--primary)] hover:bg-[var(--cloud)] transition-colors"
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg text-[var(--slate)] hover:text-[var(--primary)] hover:bg-[var(--cloud)] transition-colors whitespace-nowrap"
             >
               Check Status
             </Link>
             <Link
               href="/doctors"
-              className="btn btn-primary text-sm"
+              className="btn btn-primary text-xs xl:text-sm py-2 px-3.5 xl:px-4"
             >
               Book Appointment
             </Link>
           </div>
 
-          {/* Mobile Hamburger */}
+          {/* Mobile Hamburger (Strictly hidden on desktop, visible on mobile) */}
           <button
             ref={hamburgerRef}
-            className="lg:hidden btn btn-ghost p-2 shrink-0 -mr-1"
+            className="flex lg:hidden items-center justify-center p-2 rounded-lg text-[var(--slate)] hover:text-[var(--ink)] hover:bg-[var(--cloud)] transition-colors shrink-0 -mr-1 cursor-pointer"
             onClick={() => setMobileOpen((v) => !v)}
             aria-expanded={mobileOpen}
             aria-controls="mobile-menu"
