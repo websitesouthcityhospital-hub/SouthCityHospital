@@ -30,7 +30,16 @@ const bookingSchema = z.object({
     .min(10, "Please enter a valid 10-digit mobile number so we can reach you")
     .regex(/^[+\d\s-()]{10,}$/, "Please enter a valid phone number with digits only"),
   dob: z.string().min(1, "Please select the patient's date of birth for identity verification"),
-  preferredDate: z.string().min(1, "Please select your preferred consultation date"),
+  preferredDate: z
+    .string()
+    .min(1, "Please select your preferred consultation date")
+    .refine((date) => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const maxObj = new Date();
+      maxObj.setDate(maxObj.getDate() + 2);
+      const maxStr = maxObj.toISOString().split("T")[0];
+      return date >= todayStr && date <= maxStr;
+    }, "Consultations can only be booked up to 2 days in advance."),
   message: z.string().optional(),
 });
 
@@ -63,7 +72,19 @@ export function DoctorBookingModal({
   const dept = doctor ? departments.find((d) => d.slug === doctor.departmentSlug) : null;
   const displayName = doctor ? (doctor.name.startsWith("Dr.") ? doctor.name : `Dr. ${doctor.name}`) : "";
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
+  const maxDateObj = new Date();
+  maxDateObj.setDate(today.getDate() + 2);
+  const maxDateStr = maxDateObj.toISOString().split("T")[0];
+
+  const allowedDates = [0, 1, 2].map((offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const dateStr = d.toISOString().split("T")[0];
+    const label = offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    return { dateStr, label };
+  });
 
   const {
     register,
@@ -325,15 +346,43 @@ export function DoctorBookingModal({
 
             {/* Preferred Appointment Date */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--navy-950)] mb-1">
-                Preferred Appointment Date <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-[var(--navy-950)]">
+                  Preferred Appointment Date <span className="text-red-500">*</span>
+                </label>
+                <span className="text-[10px] text-[var(--primary)] font-semibold bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
+                  Advance Booking: Max 2 Days
+                </span>
+              </div>
+
+              {/* Quick 2-day date selector pills */}
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {allowedDates.map(({ dateStr, label }) => {
+                  const isSelected = selectedDate === dateStr;
+                  return (
+                    <button
+                      key={dateStr}
+                      type="button"
+                      onClick={() => setValue("preferredDate", dateStr, { shouldValidate: true })}
+                      className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
+                        isSelected
+                          ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-xs"
+                          : "bg-[var(--cloud)]/60 text-[var(--navy-950)] border-[var(--mist)] hover:border-slate-300"
+                      }`}
+                    >
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="relative">
                 <input
                   type="date"
                   min={todayStr}
+                  max={maxDateStr}
                   {...register("preferredDate")}
-                  className={`input-base w-full px-3.5 py-2.5 rounded-xl border outline-none transition-colors text-[var(--navy-950)] ${
+                  className={`input-base w-full px-3.5 py-2 rounded-xl border outline-none transition-colors text-xs text-[var(--navy-950)] ${
                     slotsState.isFullyUnavailable
                       ? "border-red-400 bg-red-50/50"
                       : "border-[var(--mist)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"

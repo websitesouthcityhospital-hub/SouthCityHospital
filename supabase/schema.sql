@@ -394,9 +394,13 @@ BEGIN
   -- Normalize phone
   v_clean_phone := REGEXP_REPLACE(p_patient_phone, '[^\d+]', '', 'g');
 
-  -- Validate date
+  -- Validate date (Allowed: Today, Tomorrow, or Day After = max 2 days advance)
   IF p_preferred_date < CURRENT_DATE THEN
     RETURN jsonb_build_object('success', false, 'error', 'Appointment date cannot be in the past');
+  END IF;
+
+  IF p_preferred_date > (CURRENT_DATE + INTERVAL '2 days')::DATE THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Doctor appointments can only be booked up to 2 days in advance');
   END IF;
 
   -- Validate doctor

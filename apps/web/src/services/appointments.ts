@@ -90,10 +90,20 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingR
   await new Promise((r) => setTimeout(r, 400));
 
   const todayStr = new Date().toISOString().split("T")[0];
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + 2);
+  const maxDateStr = maxDate.toISOString().split("T")[0];
+
   if (input.preferredDate < todayStr) {
     return {
       success: false,
       error: "Preferred appointment date cannot be in the past.",
+    };
+  }
+  if (input.preferredDate > maxDateStr) {
+    return {
+      success: false,
+      error: "Doctor appointments can only be booked up to 2 days in advance.",
     };
   }
 
