@@ -63,18 +63,9 @@ export function DepartmentsHighlight() {
               >
                 <Link
                   href={`/departments`}
-                  className="card flex gap-4 p-6 border border-[var(--mist)] group cursor-pointer"
+                  className="card flex gap-4 p-6 border border-[var(--mist)] group cursor-pointer items-start"
                   aria-label={`${dept.name} — ${dept.shortDescription}`}
                 >
-                  {/* Number */}
-                  <p
-                    className="font-mono text-xs font-semibold shrink-0 pt-1"
-                    style={{ color: "var(--blue-700)" }}
-                    aria-hidden="true"
-                  >
-                    {dept.number}
-                  </p>
-
                   {/* Icon */}
                   <div
                     className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors group-hover:bg-[var(--blue-700)] group-hover:text-white"

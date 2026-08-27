@@ -50,15 +50,6 @@ export function CoreValuesSection() {
                   <Icon className="w-4 h-4 sm:w-6 sm:h-6" style={{ color: "var(--primary)" }} />
                 </div>
 
-                {/* Number */}
-                <p
-                  className="font-mono text-[10px] sm:text-xs font-bold"
-                  style={{ color: "var(--primary-mid)" }}
-                  aria-hidden="true"
-                >
-                  0{i + 1}
-                </p>
-
                 <div>
                   <h3
                     className="font-display font-bold sm:font-semibold text-xs sm:text-lg mb-1 sm:mb-2 leading-tight"

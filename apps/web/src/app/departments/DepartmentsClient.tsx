@@ -37,11 +37,9 @@ function DepartmentCard({ dept, index }: { dept: (typeof departments)[0]; index:
         aria-expanded={open}
         aria-controls={`dept-panel-${dept.id}`}
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex gap-4 p-5 text-left transition-colors"
+        className="w-full flex gap-4 p-5 text-left transition-colors items-center"
         style={{ background: open ? "var(--blue-50)" : "var(--white)" }}
       >
-        <p className="font-mono text-xs font-bold shrink-0 pt-2 opacity-50" style={{ color: "var(--blue-700)" }} aria-hidden="true">{dept.number}</p>
-        
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors shadow-sm"
           style={{ background: open ? "var(--blue-700)" : "var(--sky-100)", color: open ? "white" : "var(--blue-700)" }} aria-hidden="true">
           <Icon size={22} />

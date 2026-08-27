@@ -255,8 +255,8 @@ export function DoctorsClient() {
               {displayedDepartments.map((dept) => (
                 <section key={dept.slug} className="space-y-5" aria-labelledby={`dept-heading-${dept.slug}`}>
                   <div className="flex items-center gap-3 pb-2 border-b border-[var(--mist)]">
-                    <div className="w-8 h-8 rounded-lg bg-[var(--sky-100)] text-[var(--primary)] flex items-center justify-center font-bold text-xs">
-                      {dept.number}
+                    <div className="w-8 h-8 rounded-lg bg-[var(--sky-100)] text-[var(--primary)] flex items-center justify-center shrink-0" aria-hidden="true">
+                      <Stethoscope size={16} />
                     </div>
                     <div>
                       <h3 id={`dept-heading-${dept.slug}`} className="font-display font-bold text-xl text-[var(--navy-950)]">

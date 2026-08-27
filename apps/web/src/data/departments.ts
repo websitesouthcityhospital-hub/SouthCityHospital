@@ -1,13 +1,11 @@
 /**
- * South City Hospital — Clinical Departments (11 total)
- * Hardcoded static content. Content is verbatim from spec.
+ * South City Hospital — Clinical Departments (13 total)
  * Icons: Lucide React — one unique, clinically-appropriate icon per department.
  */
 
 export interface Department {
   id: string;
   slug: string;
-  number: string;        // "01"–"11"
   name: string;
   shortDescription: string;
   overview: string;
@@ -20,7 +18,6 @@ export const departments: Department[] = [
   {
     id: "internal-medicine",
     slug: "internal-medicine",
-    number: "01",
     name: "Internal Medicine",
     shortDescription:
       "Comprehensive primary care, chronic disease management, and adult health diagnostics.",
@@ -38,7 +35,6 @@ export const departments: Department[] = [
   {
     id: "orthopaedic-surgery",
     slug: "orthopaedic-surgery",
-    number: "02",
     name: "Orthopaedic Surgery",
     shortDescription:
       "Advanced bone, joint, and trauma care, fracture management, and joint replacements.",
@@ -56,7 +52,6 @@ export const departments: Department[] = [
   {
     id: "neuro-surgery",
     slug: "neuro-surgery",
-    number: "03",
     name: "Neuro Surgery",
     shortDescription:
       "Surgical treatment for brain, spine, and peripheral nerve disorders.",
@@ -74,7 +69,6 @@ export const departments: Department[] = [
   {
     id: "general-laparoscopic-surgery",
     slug: "general-laparoscopic-surgery",
-    number: "04",
     name: "General & Laparoscopic Surgery",
     shortDescription:
       "Minimally invasive and general surgical procedures.",
@@ -92,7 +86,6 @@ export const departments: Department[] = [
   {
     id: "endoscopic-surgery",
     slug: "endoscopic-surgery",
-    number: "05",
     name: "Endoscopic Surgery",
     shortDescription:
       "Diagnostic and therapeutic GI and airway endoscopy.",
@@ -110,7 +103,6 @@ export const departments: Department[] = [
   {
     id: "gynaecology",
     slug: "gynaecology",
-    number: "06",
     name: "Gynaecology",
     shortDescription:
       "Women's healthcare, maternity services, and reproductive health care.",
@@ -128,7 +120,6 @@ export const departments: Department[] = [
   {
     id: "urology-laser-surgery",
     slug: "urology-laser-surgery",
-    number: "07",
     name: "Urology & Laser Surgery",
     shortDescription:
       "Kidney stone treatments, prostate care, and advanced urinary tract procedures.",
@@ -146,7 +137,6 @@ export const departments: Department[] = [
   {
     id: "nephrology",
     slug: "nephrology",
-    number: "08",
     name: "Nephrology",
     shortDescription:
       "Kidney disease management, hypertension care, and continuous dialysis services.",
@@ -164,7 +154,6 @@ export const departments: Department[] = [
   {
     id: "cardiology",
     slug: "cardiology",
-    number: "09",
     name: "Cardiology",
     shortDescription:
       "Heart health diagnostics, Holter monitoring, ECG, and critical cardiac care.",
@@ -182,7 +171,6 @@ export const departments: Department[] = [
   {
     id: "plastic-surgery",
     slug: "plastic-surgery",
-    number: "10",
     name: "Plastic Surgery",
     shortDescription:
       "Reconstructive, trauma, and cosmetic surgical procedures.",
@@ -200,7 +188,6 @@ export const departments: Department[] = [
   {
     id: "paediatrics",
     slug: "paediatrics",
-    number: "11",
     name: "Paediatrics",
     shortDescription:
       "Infant, child, and adolescent medical care and pediatric critical monitoring.",
@@ -218,7 +205,6 @@ export const departments: Department[] = [
   {
     id: "anaesthesiology",
     slug: "anaesthesiology",
-    number: "12",
     name: "Anaesthesiology",
     shortDescription: "Specialized pain relief and medical care during surgical procedures.",
     overview: "Providing comprehensive perioperative care, pain management, and critical life support before, during, and after surgical interventions.",
@@ -234,7 +220,6 @@ export const departments: Department[] = [
   {
     id: "oncology",
     slug: "oncology",
-    number: "13",
     name: "Oncology",
     shortDescription: "Comprehensive cancer diagnosis, staging, and treatment planning.",
     overview: "Dedicated to the early detection, specialized treatment, and ongoing management of various cancers using multidisciplinary approaches.",
