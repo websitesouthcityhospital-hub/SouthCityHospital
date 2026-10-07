@@ -152,6 +152,32 @@ body {
   min-height: 100dvh;
 }
 
+/* ─── MOBILE OVERFLOW GUARD ──────────────────────────────── */
+/* Prevents any element from making the page wider than the viewport on phones.
+   Applies only below 768px (tablet/desktop layout is unaffected). */
+@media (max-width: 767px) {
+  /* Clamp page to viewport width.
+     Applied to html only (not body) to avoid breaking position:sticky on the navbar. */
+  html {
+    overflow-x: hidden;
+  }
+
+
+  /* Allow btn text to wrap on small screens so long labels
+     (e.g. "Call Hospital: +91 XXXXX XXXXX") don't stretch the page */
+  .btn {
+    white-space: normal;
+  }
+
+  /* Grid/flex children must shrink to fit — prevents wide content
+     (tables, cards, long headings) from overflowing their column */
+  .container-site > *,
+  .container-site [class*="grid"] > *,
+  .container-site [class*="flex"] > * {
+    min-width: 0;
+  }
+}
+
 /* ─── SKIP LINK (Accessibility) ─────────────────────────────── */
 .skip-link {
   position: absolute;

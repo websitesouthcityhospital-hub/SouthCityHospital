@@ -25,6 +25,8 @@ const nextConfig: NextConfig = {
     "10.173.241.10:3000",
     "10.238.228.10",
     "10.238.228.10:3000",
+    "10.151.247.10",
+    "10.151.247.10:3000",
     "localhost:3000",
   ],
   transpilePackages: ["@sch/types"],
